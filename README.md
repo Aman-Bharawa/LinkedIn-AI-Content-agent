@@ -7,7 +7,7 @@ the implementation brief.
 - Source of truth: [docs/IMPLEMENTATION_BRIEF.md](docs/IMPLEMENTATION_BRIEF.md)
 - Decisions and deviations: [docs/DECISIONS.md](docs/DECISIONS.md)
 
-**Status:** Milestone 0 — project foundation.
+**Status:** Milestone 1 — database schema.
 
 ## Stack
 
@@ -23,7 +23,10 @@ the implementation brief.
 
 ```text
 config/           settings (base/dev/test/prod), URLs, Celery app
-apps/core/        health endpoints and home page
+apps/core/        health endpoints, home page, audit log, token encryption (security.py)
+apps/accounts/    LinkedIn account (encrypted tokens), owner check
+apps/content/     pillars, topics, verified knowledge, writing examples
+apps/posts/       posts, reviews, versions, publications, status state machine (state.py)
 templates/        base.html (Bootstrap + HTMX) and page templates
 static/vendor/    pinned Bootstrap and HTMX files (see VENDOR.md)
 tests/            pytest suite
@@ -31,7 +34,7 @@ docker/           Docker Compose for local PostgreSQL and Redis
 docs/             implementation brief and decisions log
 ```
 
-Domain apps (`accounts`, `content`, `posts`, `ai`, `linkedin`) are added in their milestones.
+The `ai` and `linkedin` apps are added in their milestones.
 Django's built-in admin is mounted at `/django-admin/` so `/admin/` is free for the owner dashboard.
 
 ## First-time setup (Windows)
@@ -49,7 +52,7 @@ Prerequisites: [uv](https://docs.astral.sh/uv/), PostgreSQL 16+ running locally,
 
    `CREATEDB` lets the test suite create its own `test_linkedin_agent` database.
 
-2. Copy `.env.example` to `.env` and fill in `DJANGO_SECRET_KEY` and `DB_PASSWORD`.
+2. Copy `.env.example` to `.env` and fill in `DJANGO_SECRET_KEY`, `DB_PASSWORD` and `TOKEN_ENCRYPTION_KEYS`.
 
 3. Install dependencies into `.venv` from the lockfile and migrate:
 
@@ -96,4 +99,13 @@ Automated tests never call OpenAI or LinkedIn.
 
 - Real values live only in `.env` (git-ignored) or the hosting secret manager.
 - `.env.example` holds placeholders only.
-- LinkedIn tokens will be encrypted with a dedicated key (`TOKEN_ENCRYPTION_KEYS`), never the Django `SECRET_KEY`.
+- LinkedIn tokens are encrypted at rest (Fernet: AES + HMAC) with `TOKEN_ENCRYPTION_KEYS`, never the
+  Django `SECRET_KEY`. In code they are masked `SecretValue` objects and never appear in admin,
+  templates, logs or `dumpdata`. Back up the database with `pg_dump`.
+
+### Rotating the token encryption key
+
+1. Generate a new key and put it **first** in `TOKEN_ENCRYPTION_KEYS`, keeping the old key after it
+   (`TOKEN_ENCRYPTION_KEYS=<new>,<old>`), then restart the web process and worker.
+2. Run `uv run python manage.py rotate_token_keys` to re-encrypt stored tokens with the new key.
+3. Remove the old key (`TOKEN_ENCRYPTION_KEYS=<new>`) and restart again.

@@ -28,6 +28,9 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django_bootstrap5",
     "apps.core",
+    "apps.accounts",
+    "apps.content",
+    "apps.posts",
 ]
 
 MIDDLEWARE = [
@@ -104,6 +107,9 @@ LOGIN_URL = "admin:login"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
+
+# Fernet keys for LinkedIn tokens, newest first. Dedicated; never the SECRET_KEY.
+TOKEN_ENCRYPTION_KEYS = env.list("TOKEN_ENCRYPTION_KEYS", default=[])
 
 # Redis (Memurai on Windows) backs Celery and, later, task locks.
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")

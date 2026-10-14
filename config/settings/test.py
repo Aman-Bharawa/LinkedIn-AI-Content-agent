@@ -1,4 +1,9 @@
+from cryptography.fernet import Fernet
+
 from .base import *  # noqa: F403
+
+# Throwaway key generated per test run; real keys never reach the test suite.
+TOKEN_ENCRYPTION_KEYS = [Fernet.generate_key().decode()]
 
 DEBUG = False
 ALLOWED_HOSTS = ["testserver", "localhost"]

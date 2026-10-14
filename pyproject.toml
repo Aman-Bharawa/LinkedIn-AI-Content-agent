@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "celery[redis]>=5.6,<5.7",
+    "cryptography>=46",
     "django>=5.2,<5.3",
     "django-bootstrap5>=26.4",
     "django-environ>=0.14.0",
@@ -38,6 +39,8 @@ extend-exclude = [".venv", "**/migrations/*", "static/vendor"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "DJ", "S", "SIM", "RUF"]
+# RUF012 flags Django's Meta/admin class attributes, which are idiomatic.
+ignore = ["RUF012"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]
