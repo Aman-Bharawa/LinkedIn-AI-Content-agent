@@ -1,0 +1,60 @@
+[project]
+name = "linkedin-ai-content-agent"
+version = "0.1.0"
+description = "Single-owner app to plan, generate, review, approve and publish LinkedIn posts."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "celery[redis]>=5.6,<5.7",
+    "django>=5.2,<5.3",
+    "django-bootstrap5>=26.4",
+    "django-environ>=0.14.0",
+    "psycopg[binary]>=3.2",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "bandit>=1.9.4",
+    "django-stubs>=6.1.2",
+    "mypy>=2.4.0",
+    "pip-audit>=2.10.1",
+    "pytest>=9.1.1",
+    "pytest-django>=4.14.0",
+    "ruff>=0.17.0",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+extend-exclude = [".venv", "**/migrations/*", "static/vendor"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "DJ", "S", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+python_version = "3.13"
+plugins = ["mypy_django_plugin.main"]
+check_untyped_defs = true
+warn_unused_ignores = true
+exclude = ["\\.venv/", "migrations/"]
+
+[[tool.mypy.overrides]]
+module = ["celery.*", "environ.*", "django_bootstrap5.*"]
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings.test"
+
+[tool.bandit]
+exclude_dirs = [".venv", "tests", "static"]
