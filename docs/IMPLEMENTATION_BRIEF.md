@@ -5,6 +5,22 @@
 
 This document turns the supplied product blueprint into an incremental implementation plan for a Python application. It is intended to be the source brief for the developer and should be implemented one milestone at a time.
 
+> **Owner amendments (2026-10-14).** The owner changed the workflow as allowed by §12. The sections
+> below are updated in place; the original text is in git history (tag `milestone-2`).
+>
+> 1. **Keyword posts.** The owner can type a keyword/topic and the AI writes a post about it.
+>    Leaving it blank lets the AI choose the topic.
+> 2. **Daily auto-draft kept.** The weekday 08:00 job still creates one AI-chosen draft.
+> 3. **Origin tags.** Every post is tagged by origin — **Keyword** (owner keyword) or
+>    **Auto draft** (scheduled job) — and the tag is shown in the dashboard.
+> 4. **Approval queue.** Posts awaiting approval form a sequence. Rejecting a post removes it
+>    from the sequence (it is kept in history, not deleted).
+> 5. **Daily publishing of approved posts.** Approving a post places it in the publishing queue.
+>    Exactly one approved post is published per day at **08:00 Asia/Kolkata, every day**, in
+>    approval order: the first today (if today's 08:00 slot has not passed and is free),
+>    the next tomorrow, and so on. Only owner-approved posts are ever published; posts without
+>    owner approval can never be scheduled or published.
+
 ## 1. Project objective
 
 Build a single-owner application that helps user's plan, generate, review, edit, and publish LinkedIn posts. The system can select a topic and draft content automatically, but a person must explicitly approve every post before it can be published in V1.
@@ -12,18 +28,27 @@ Build a single-owner application that helps user's plan, generate, review, edit,
 Expected V1 flow:
 
 ```text
-Scheduled or manual request
-  -> select a topic and pillar
+Owner keyword request (origin: Keyword)  or  weekday 08:00 auto-draft job (origin: Auto draft)
+  -> select a topic and pillar (from the keyword, or chosen by the AI)
   -> load verified knowledge and writing guidance
   -> generate a structured post
   -> review and, if needed, regenerate (maximum three attempts)
-  -> save a draft
-  -> User edits, rejects, or approves it
-  -> publish an approved post through LinkedIn's official API
+  -> save the draft into the approval queue (pending approval)
+  -> User edits, rejects (removed from the queue), or approves it
+  -> an approved post gets the next free daily publishing slot (08:00 Asia/Kolkata, one per day)
+  -> at its slot, publish it through LinkedIn's official API
   -> retain the LinkedIn post ID and publication record
 ```
 
 Publishing must be impossible unless the post is in the approved state. AI approval is never a substitute for the owner's approval.
+
+Publishing queue rules:
+
+- Slots are one per calendar day at the configured publish time (initially 08:00 Asia/Kolkata, every day).
+- Approved posts take the next free slot in the order they were approved. The first post may use today's slot only if that time has not passed and no post is booked for today.
+- Rejecting, un-approving or editing a scheduled post removes it from the queue; later posts move up so no day is left empty. An edited post returns to pending approval and needs approval again.
+- At most one post is published per day. The publish task re-checks, under a lock, that the post is still approved and its slot has arrived.
+- The owner can pause all scheduled publishing with one switch.
 
 ## 2. Scope and implementation assumption
 
@@ -125,6 +150,7 @@ Tokens must never appear in HTML, API responses, exception messages, or logs. Us
 ### `LinkedInPost`
 
 - topic and content pillar
+- origin: `keyword` (owner keyword) or `auto` (scheduled auto-draft), plus the owner's keyword when given
 - current content and hook
 - hashtags
 - status: `draft`, `generating`, `reviewing`, `pending_approval`, `rejected`, `approved`, `publishing`, `published`, `failed`, `needs_manual_review`
@@ -209,7 +235,7 @@ Each milestone is a reviewable increment. Do not start the next milestone until 
 
 ### Milestone 4 — AI topic selection
 
-**Build:** `Ai.select_topic` service using the configured strategy, active verified knowledge, recent posts/topics, and OpenAI Structured Outputs. Return JSON fields `pillar`, `topic`, `angle`, and `format`. Avoid recently used topics, exact and near duplicates, unsupported personal stories, and excessive promotion. Record accepted topics and cap retries.
+**Build:** `Ai.select_topic` service using the configured strategy, active verified knowledge, recent posts/topics, an optional owner keyword, and OpenAI Structured Outputs. With a keyword, the topic must be about that keyword; without one, the AI chooses. Return JSON fields `pillar`, `topic`, `angle`, and `format`. Avoid recently used topics, exact and near duplicates, unsupported personal stories, and excessive promotion. Record accepted topics and cap retries.
 
 **Acceptance:** With a mocked API response, the service returns a schema-valid configured pillar and a new topic; tests cover duplicate rejection, invalid output, missing key, API errors, and bounded retry. Do not make live API calls in automated tests.
 
@@ -231,7 +257,7 @@ Each milestone is a reviewable increment. Do not start the next milestone until 
 
 ### Milestone 7 — Authenticated review dashboard
 
-**Build:** Owner-only `/admin/posts` dashboard for pending approval, drafts, published, rejected, failed, and needs-manual-review posts. Display topic, pillar, score, post, hashtags, and review feedback. Actions: edit, regenerate, reject, approve. Protect every page and action with authentication and authorization. No public signup is needed for the single-owner V1.
+**Build:** Owner-only `/admin/posts` dashboard for pending approval, drafts, published, rejected, failed, and needs-manual-review posts. Display topic, pillar, origin tag (Keyword / Auto draft), score, post, hashtags, and review feedback. Include a keyword form to request a new post, the approval queue, and the publishing queue with each post's scheduled day. Actions: edit, regenerate, reject, approve. Protect every page and action with authentication and authorization. No public signup is needed for the single-owner V1.
 
 **Acceptance:** Unauthenticated requests are denied. The owner can inspect a saved draft and reject it. The dashboard exposes no API or OAuth tokens.
 
@@ -261,11 +287,16 @@ Each milestone is a reviewable increment. Do not start the next milestone until 
 
 **Acceptance:** Queue retries do not bypass post-state rules; worker loss or API failures leave a recoverable status and useful owner-facing error message.
 
-### Milestone 12 — Scheduler and dashboard notifications
+### Milestone 12 — Scheduler, publishing queue and dashboard notifications
 
-**Build:** Celery Beat schedule, initially weekdays at 08:00 in the configured owner timezone, that creates and reviews a draft only. Add dashboard notification when ready. No scheduled action may publish.
+**Build:** Two Celery Beat schedules in the configured owner timezone:
 
-**Acceptance:** Scheduler creates at most one draft per configured run, respects timezone and duplicate safeguards, and never approves or publishes a draft.
+1. **Auto-draft:** weekdays at 08:00, creates and reviews one AI-chosen draft (origin `auto`) and puts it in the approval queue. It never approves or publishes.
+2. **Daily publish:** every day at the publish time (initially 08:00), publishes the one approved post whose slot is today, following the publishing queue rules in §1.
+
+Add slot assignment on approval, queue re-ordering on reject/edit/un-approve, a pause switch, and a dashboard notification when a draft is ready or a post is published.
+
+**Acceptance:** The auto-draft run creates at most one draft and never approves or publishes. The publish run publishes at most one post per day, only if it is owner-approved and its slot has arrived, respects timezone, the pause switch and duplicate safeguards, and never publishes a draft, pending, rejected or edited-after-approval post.
 
 ### Milestone 13 — Production hardening and deployment
 
@@ -288,7 +319,7 @@ The following are release-blocking tests:
 9. Manual edits and original AI content are both preserved.
 10. Unauthenticated users cannot access dashboard routes or actions.
 11. Unsupported claims block movement to owner approval or are clearly flagged for manual review.
-12. Scheduled tasks create drafts only; they never publish.
+12. The auto-draft schedule creates drafts only. The publish schedule publishes only owner-approved posts, at most one per day, in queue order, and never anything else.
 
 Use mocked OpenAI and LinkedIn clients in unit/integration tests. Live API verification belongs in an explicit manual test environment and must never run as part of the normal test suite.
 
@@ -304,7 +335,7 @@ Use mocked OpenAI and LinkedIn clients in unit/integration tests. Live API verif
 - Apply request timeouts, safe error messages, and rate limits to external integrations.
 - Use minimum LinkedIn scopes; do not collect or store information not required for the workflow.
 - Treat model output as untrusted. Validate schemas and business rules in application code.
-- Keep human approval mandatory. Do not add a hidden auto-publish path.
+- Keep human approval mandatory. Do not add a hidden auto-publish path. The daily publish schedule may only publish posts the owner explicitly approved.
 
 ## 9. Explicit V1 non-goals
 

@@ -11,6 +11,7 @@ decisions taken at kickoff (brief section 12).
 | Codebase | Fresh Python implementation. There is no Rails prototype or data to migrate. |
 | Users | Single owner (brief section 2). |
 | Owner timezone | `Asia/Kolkata`. Times are stored in UTC and shown/scheduled in IST. |
+| Workflow (brief amended 2026-10-14) | Owner keyword → AI post → approval queue → approve → next free daily slot → auto-publish. Reject removes from the queue. Daily publish at **08:00 IST, every day**, one post per day, in approval order. Weekday 08:00 auto-draft job kept. Posts tagged **Keyword** or **Auto draft**. See the amendments at the top of the brief. |
 | UI library | Bootstrap 5.3 (CSS + JS) with Django templates and HTMX, at the owner's request. |
 | Python environment | Project-local `.venv` managed by `uv`; versions pinned in `uv.lock`. |
 | Verified facts / writing samples | Not supplied yet. `founder.md` and `company.md` ship with no facts; `writing_examples/` is empty. The owner adds them later. |
