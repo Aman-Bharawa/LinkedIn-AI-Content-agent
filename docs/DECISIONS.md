@@ -13,7 +13,8 @@ decisions taken at kickoff (brief section 12).
 | Owner timezone | `Asia/Kolkata`. Times are stored in UTC and shown/scheduled in IST. |
 | UI library | Bootstrap 5.3 (CSS + JS) with Django templates and HTMX, at the owner's request. |
 | Python environment | Project-local `.venv` managed by `uv`; versions pinned in `uv.lock`. |
-| Verified facts / writing samples | Still to be supplied by the owner before Milestone 2. |
+| Verified facts / writing samples | Not supplied yet. `founder.md` and `company.md` ship with no facts; `writing_examples/` is empty. The owner adds them later. |
+| Post format | Owner asked (M2) for the standard LinkedIn post format. Written into `writing_style.md` as rules and post structures, not as sample posts, because the brief forbids seeding generated posts as genuine examples. |
 | LinkedIn product access | Still to be confirmed by the owner before Milestone 9. |
 
 ## Deviations and interpretations
@@ -40,3 +41,8 @@ decisions taken at kickoff (brief section 12).
 | M6 "maximum three attempts" | Database constraint `generation_attempts <= 3` on posts and `attempt_number` 1–3 on reviews. | The retry limit can't be bypassed by a bug. |
 | §5 PostPublication | Partial unique constraints: one active attempt (pending/in progress/unknown) and one success per post; unique `idempotency_key`; error text redacted on save. | One active attempt per post, idempotent operations, safe error details. |
 | §5 AuditEvent | Lives in `apps/core`; append-only; rejects metadata keys that look like secrets. | Owner actions span accounts and posts. |
+| M2 knowledge source | Markdown files are the version-controlled source; `sync_knowledge` imports them into `ContentKnowledge` / `WritingExample`; AI services read only the database through `load_knowledge_context()`. | One runtime source; admin edits and file edits both work; verification is enforced by the database. |
+| M2 verification rule | A fact is verified only if its bullet ends with `(source: ...)`; otherwise it is stored unverified with file provenance and never used. Removed facts are deactivated, not deleted. | "Unsupported claims are never elevated into verified knowledge"; keeps an audit trail. |
+| M2 approved topics | The 13 approved subject areas (brief §4) live in `writing_style.md` under "Approved subject areas" and load as `subject_area` knowledge. | Avoids an extra file; pillars and weights remain M3. |
+| M2 post formats | `writing_style.md` defines `lesson`, `how_to`, `contrarian`, `framework`, `myth_vs_reality`, `question`. | Gives M4's `format` field a fixed, owner-editable vocabulary. |
+| CI trigger | Runs on branch pushes and pull requests, not tag pushes. | Avoids duplicate runs when a milestone tag is pushed. |

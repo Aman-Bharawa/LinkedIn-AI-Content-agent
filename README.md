@@ -7,7 +7,7 @@ the implementation brief.
 - Source of truth: [docs/IMPLEMENTATION_BRIEF.md](docs/IMPLEMENTATION_BRIEF.md)
 - Decisions and deviations: [docs/DECISIONS.md](docs/DECISIONS.md)
 
-**Status:** Milestone 1 — database schema.
+**Status:** Milestone 2 — knowledge base.
 
 ## Stack
 
@@ -30,6 +30,7 @@ apps/posts/       posts, reviews, versions, publications, status state machine (
 templates/        base.html (Bootstrap + HTMX) and page templates
 static/vendor/    pinned Bootstrap and HTMX files (see VENDOR.md)
 tests/            pytest suite
+knowledge/        founder/company facts, writing style, real writing examples (Markdown)
 docker/           Docker Compose for local PostgreSQL and Redis
 docs/             implementation brief and decisions log
 ```
@@ -59,6 +60,7 @@ Prerequisites: [uv](https://docs.astral.sh/uv/), PostgreSQL 16+ running locally,
    ```powershell
    uv sync
    uv run python manage.py migrate
+   uv run python manage.py sync_knowledge
    uv run python manage.py createsuperuser
    ```
 
@@ -77,6 +79,21 @@ uv run celery -A config worker --pool=solo -l info
 - App: http://localhost:8000/ (requires login as the owner/superuser)
 - Liveness: http://localhost:8000/health/
 - Readiness (checks PostgreSQL and Redis): http://localhost:8000/health/ready/
+
+## Knowledge base
+
+The AI may only use what is in `knowledge/`:
+
+- `founder.md`, `company.md`: one fact per bullet under `## Facts`, each ending with
+  `(source: ...)`. Bullets without a source are stored as unverified and never used.
+- `writing_style.md`: voice rules, the standard LinkedIn post format, post formats and the
+  approved subject areas.
+- `writing_examples/`: real posts the founder wrote, one file each, with `approved: true`
+  (see the README in that folder). Never add AI-generated posts.
+
+After editing any of these, run `uv run python manage.py sync_knowledge`. Records can also be
+reviewed in Django admin (`/django-admin/`); facts that came from the files are overwritten by
+the next sync, so change them in the files.
 
 ## Checks (run before finishing any milestone)
 

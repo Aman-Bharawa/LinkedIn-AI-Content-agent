@@ -108,6 +108,9 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 
+# Owner-maintained Markdown knowledge sources (founder, company, style, examples).
+KNOWLEDGE_DIR = BASE_DIR / "knowledge"
+
 # Fernet keys for LinkedIn tokens, newest first. Dedicated; never the SECRET_KEY.
 TOKEN_ENCRYPTION_KEYS = env.list("TOKEN_ENCRYPTION_KEYS", default=[])
 
