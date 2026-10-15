@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -100,7 +101,14 @@ def exchange_code(code: str) -> OAuthToken:
     if not isinstance(access, str) or not access or not isinstance(expires, int) or expires <= 0:
         raise LinkedInServiceError("LinkedIn returned an incomplete token response.")
     scope_value = payload.get("scope", "")
-    scopes = tuple(unquote(scope_value).split()) if isinstance(scope_value, str) else ()
+    # LinkedIn documents space-delimited scope values, while its token
+    # inspection tooling can report the same scopes comma-delimited. Accept
+    # both representations so granted permissions aren't falsely rejected.
+    scopes = (
+        tuple(scope for scope in re.split(r"[\s,]+", unquote(scope_value).strip()) if scope)
+        if isinstance(scope_value, str)
+        else ()
+    )
     return OAuthToken(
         access_token=access,
         expires_in=expires,
