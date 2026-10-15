@@ -15,4 +15,4 @@ RUN useradd --system --uid 10001 --create-home app && chown -R app:app /app
 USER app
 
 EXPOSE 8000
-CMD ["/bin/sh", "-c", "exec /app/.venv/bin/gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 3 --timeout 120"]
+CMD ["/bin/sh", "-c", "/app/.venv/bin/python manage.py collectstatic --noinput && exec /app/.venv/bin/gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 3 --timeout 120"]
