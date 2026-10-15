@@ -7,6 +7,7 @@ TOKEN_ENCRYPTION_KEYS = [Fernet.generate_key().decode()]
 
 DEBUG = False
 ALLOWED_HOSTS = ["testserver", "localhost"]
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 
 # Fast hashing for tests only.
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

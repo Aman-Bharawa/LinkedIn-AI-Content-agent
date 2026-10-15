@@ -15,12 +15,15 @@
           <h1 class="h2 mb-1">{{ post.topic }}</h1>
           <p class="text-secondary mb-0">{{ post.pillar.name|default:"Pillar not assigned" }} · Created {{ post.created_at|date:"M j, Y, g:i a" }}</p>
         </div>
-        {% if can_edit %}<a class="btn btn-outline-primary" href="{% url 'posts:edit' post.pk %}">Edit draft</a>{% endif %}
+        <div class="d-flex gap-2">
+          {% if can_edit %}<a class="btn btn-outline-primary" href="{% url 'posts:edit' post.pk %}">Edit draft</a>{% endif %}
+          {% if can_regenerate %}<form method="post" action="{% url 'posts:regenerate' post.pk %}">{% csrf_token %}<button type="submit" class="btn btn-outline-secondary">Regenerate</button></form>{% endif %}
+        </div>
       </div>
 
       {% if can_review %}
         <div class="alert alert-info" role="note">
-          <strong>Owner review required.</strong> Verify every factual statement against your sources before approval. This MVP does not publish posts to LinkedIn.
+          <strong>Owner review required.</strong> Verify every factual statement against your sources before approval. AI review never approves or publishes a post.
         </div>
       {% elif post.status == 'approved' %}
         <div class="alert alert-success" role="status">You approved this draft. Publishing remains a separate manual step.</div>
@@ -28,6 +31,14 @@
         <div class="alert alert-danger" role="alert">{{ post.last_error }}</div>
       {% elif post.status == 'rejected' %}
         <div class="alert alert-secondary" role="status">This post was rejected and kept in history.{% if post.rejection_reason %} Reason: {{ post.rejection_reason }}{% endif %}</div>
+      {% endif %}
+
+      {% if post.status == 'approved' %}
+        <form method="post" action="{% url 'linkedin:publish' post.pk %}" class="mt-3 mb-5">
+      {% csrf_token %}
+          <p class="text-warning-emphasis">Publishing immediately creates a public LinkedIn post.</p>
+          <button class="btn btn-primary" type="submit">Publish this approved post now</button>
+        </form>
       {% endif %}
 
       <article class="card shadow-sm mb-4">
@@ -61,6 +72,19 @@
         {% endif %}
       {% endwith %}
 
+      {% if publications %}
+        <section class="card mb-4" aria-labelledby="publication-heading">
+          <div class="card-body">
+            <h2 id="publication-heading" class="h5">Publication history</h2>
+            <ul class="mb-0">
+              {% for attempt in publications %}
+                <li>{{ attempt.get_status_display }}{% if attempt.linkedin_post_urn %} · {{ attempt.linkedin_post_urn }}{% endif %}{% if attempt.error_message %} · {{ attempt.error_message }}{% endif %}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </section>
+      {% endif %}
+
       {% if can_review %}
         <div class="d-flex flex-wrap align-items-center gap-2 mb-5">
           <form method="post" action="{% url 'posts:approve' post.pk %}">
@@ -79,9 +103,18 @@
         <h2 id="versions-heading" class="h4">Version history</h2>
         <div class="list-group">
           {% for version in versions %}
-            <div class="list-group-item d-flex justify-content-between gap-3">
-              <span>Version {{ version.version_number }} · {{ version.get_kind_display }}</span>
-              <span class="small text-secondary">{{ version.created_at|date:"M j, Y, g:i a" }}</span>
+            <div class="list-group-item">
+              <div class="d-flex justify-content-between gap-3">
+                <span>Version {{ version.version_number }} · {{ version.get_kind_display }}</span>
+                <span class="small text-secondary">{{ version.created_at|date:"M j, Y, g:i a" }}</span>
+              </div>
+              <details class="mt-2">
+                <summary>Compare this snapshot</summary>
+                <div class="mt-2"><strong>Topic:</strong> {{ version.topic }}</div>
+                {% if version.hook %}<div><strong>Hook:</strong> {{ version.hook }}</div>{% endif %}
+                <div class="mt-2" style="white-space: pre-wrap">{{ version.content }}</div>
+                {% if version.hashtags %}<div class="text-primary mt-2">{% for tag in version.hashtags %}#{{ tag }}{% if not forloop.last %} {% endif %}{% endfor %}</div>{% endif %}
+              </details>
             </div>
           {% empty %}
             <div class="list-group-item text-secondary">No saved versions.</div>

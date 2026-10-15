@@ -31,10 +31,13 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.content",
     "apps.posts",
+    "apps.linkedin",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "apps.core.middleware.OwnerActionRateLimitMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -119,6 +122,14 @@ GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
 GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
 GEMINI_TIMEOUT_SECONDS = env.int("GEMINI_TIMEOUT_SECONDS", default=45)
 
+# LinkedIn OAuth and Posts API. The default API version is the latest version
+# documented on 2026-10-15; operators should update it before its sunset.
+LINKEDIN_CLIENT_ID = env("LINKEDIN_CLIENT_ID", default="")
+LINKEDIN_CLIENT_SECRET = env("LINKEDIN_CLIENT_SECRET", default="")
+LINKEDIN_REDIRECT_URI = env("LINKEDIN_REDIRECT_URI", default="")
+LINKEDIN_API_VERSION = env("LINKEDIN_API_VERSION", default="202609")
+LINKEDIN_TIMEOUT_SECONDS = env.int("LINKEDIN_TIMEOUT_SECONDS", default=15)
+
 # Review quality scores are higher-is-better; risk scores are higher-is-worse.
 AI_REVIEW_QUALITY_MIN = env.int("AI_REVIEW_QUALITY_MIN", default=6)
 AI_REVIEW_AI_LIKE_MAX = env.int("AI_REVIEW_AI_LIKE_MAX", default=4)
@@ -127,6 +138,14 @@ AI_REVIEW_REPETITION_MAX = env.int("AI_REVIEW_REPETITION_MAX", default=5)
 
 # Redis (Memurai on Windows) backs Celery and, later, task locks.
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL,
+        "KEY_PREFIX": "linkedin-agent",
+        "TIMEOUT": 60,
+    }
+}
 
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", default=REDIS_URL)
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=REDIS_URL)
@@ -146,10 +165,8 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "simple": {"format": "{asctime} {levelname} {name}: {message}", "style": "{"},
+        "json": {"()": "apps.core.logging.SecretSafeJsonFormatter"},
     },
-    "handlers": {
-        "console": {"class": "logging.StreamHandler", "formatter": "simple"},
-    },
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "json"}},
     "root": {"handlers": ["console"], "level": env("LOG_LEVEL", default="INFO")},
 }

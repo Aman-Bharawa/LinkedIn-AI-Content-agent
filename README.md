@@ -7,7 +7,9 @@ the implementation brief.
 - Source of truth: [docs/IMPLEMENTATION_BRIEF.md](docs/IMPLEMENTATION_BRIEF.md)
 - Decisions and deviations: [docs/DECISIONS.md](docs/DECISIONS.md)
 
-**Status:** Friday MVP demo flow — in progress (Milestone 3 complete).
+**Status:** Application workflows through milestone 12 are implemented; production launch checks
+and live LinkedIn verification remain dependent on owner-managed credentials, app approval, and
+hosting resources. See [deployment runbook](docs/DEPLOYMENT.md).
 
 ## Stack
 
@@ -26,17 +28,17 @@ config/           settings (base/dev/test/prod), URLs, Celery app
 apps/core/        health endpoints, home page, audit log, token encryption (security.py)
 apps/accounts/    LinkedIn account (encrypted tokens), owner check
 apps/content/     weighted strategy groups, pillars, topics, verified knowledge, writing examples
-apps/posts/       posts, reviews, versions, publications, status state machine (state.py)
-apps/ai/          Gemini API draft generation using verified knowledge
+apps/posts/       posts, reviews, versions, publications, Celery tasks, status state machine
+apps/linkedin/    LinkedIn OAuth, member identity, official Posts API client and publish task
+apps/ai/          Gemini API draft generation and quality review using verified knowledge
 templates/        base.html (Bootstrap + HTMX) and page templates
 static/vendor/    pinned Bootstrap and HTMX files (see VENDOR.md)
 tests/            pytest suite
 knowledge/        founder/company facts, writing style, real writing examples (Markdown)
-docker/           Docker Compose for local PostgreSQL and Redis
-docs/             implementation brief and decisions log
+docker/           Dockerfile and Compose web, worker, Beat, PostgreSQL and Redis services
+docs/             implementation brief, decisions, and deployment/recovery runbook
 ```
 
-The `linkedin` app is added in its later milestone.
 Django's built-in admin is mounted at `/django-admin/` so `/admin/` is free for the owner dashboard.
 
 ## First-time setup (Windows)
@@ -75,6 +77,9 @@ uv run python manage.py runserver
 
 # Terminal 2: Celery worker (--pool=solo is required on Windows)
 uv run celery -A config worker --pool=solo -l info
+
+# Terminal 3: weekday 08:00 draft scheduler
+uv run celery -A config beat -l info
 ```
 
 - App: http://localhost:8000/ (requires login as the owner/superuser)
@@ -103,7 +108,8 @@ and stores a strategy-backed, nonduplicate topic, then asks Gemini to write the 
 topic using verified knowledge, approved examples, and recent posts. The draft enters the manual
 review queue.
 The owner can edit, approve, or reject it; edits are versioned and the original AI output is kept.
-This demo does not publish to LinkedIn. Before using live generation, set `GEMINI_API_KEY` in
+Only an explicit owner action on an approved post can publish it through LinkedIn's official API.
+Scheduled jobs create drafts only. Before using live generation, set `GEMINI_API_KEY` in
 the ignored `.env` file. `GEMINI_MODEL` defaults to `gemini-3.8-flash`. Never paste an API key
 into chat or commit it.
 

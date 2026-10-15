@@ -11,7 +11,9 @@ dependencies = [
     "django-bootstrap5>=26.4",
     "django-environ>=0.14.0",
     "google-genai>=2.31.0",
+    "gunicorn>=23,<24",
     "psycopg[binary]>=3.2",
+    "whitenoise>=6.9,<7",
 ]
 
 [tool.uv]

@@ -58,10 +58,10 @@ def test_owner_keyword_creates_manual_review_post_without_live_api(client, owner
     )
     with (
         mock.patch(
-            "apps.posts.views.generate_linkedin_draft",
+            "apps.posts.tasks.generate_linkedin_draft",
             return_value=generated_draft(content_topic_id=topic.pk),
         ) as call,
-        mock.patch("apps.posts.views.review_linkedin_post", return_value=passing_review()),
+        mock.patch("apps.posts.tasks.review_linkedin_post", return_value=passing_review()),
     ):
         response = client.post(reverse("posts:generate"), {"keyword": "small releases"})
 
@@ -141,6 +141,58 @@ def test_reject_removes_post_from_queue_but_keeps_history(client, owner, post):
 
 def test_dashboard_requires_owner(client):
     assert client.get(reverse("core:home")).status_code == 302
+    assert client.get(reverse("core:posts-dashboard")).status_code == 302
+
+
+@pytest.mark.django_db
+def test_owner_dashboard_lists_and_filters_posts(client, owner, post):
+    client.force_login(owner)
+    response = client.get(reverse("core:posts-dashboard"), {"status": PostStatus.PENDING_APPROVAL})
+
+    assert response.status_code == 200
+    assert list(response.context["page_obj"].object_list) == [post]
+    assert b"AI score" in response.content
+
+
+@pytest.mark.django_db
+def test_owner_can_manually_regenerate_with_attempt_cap_and_original_preserved(
+    client, owner, post, pillar
+):
+    topic = ContentTopic.objects.create(title="Ship smaller releases", pillar=pillar)
+    post.content_topic = topic
+    post.original_ai_content = post.content
+    post.generation_attempts = 1
+    post.save()
+    PostVersion.objects.create(
+        post=post,
+        version_number=1,
+        kind=VersionKind.AI_GENERATED,
+        topic=post.topic,
+        hook=post.hook,
+        content=post.original_ai_content,
+        hashtags=post.hashtags,
+    )
+    client.force_login(owner)
+    with (
+        mock.patch(
+            "apps.posts.tasks.generate_linkedin_post",
+            return_value=generated_draft(content_topic_id=topic.pk),
+        ) as generate,
+        mock.patch("apps.posts.tasks.review_linkedin_post", return_value=passing_review()),
+    ):
+        response = client.post(reverse("posts:regenerate", args=[post.pk]))
+
+    post.refresh_from_db()
+    assert response.status_code == 302
+    assert post.status == PostStatus.NEEDS_MANUAL_REVIEW
+    assert post.generation_attempts == 2
+    assert post.original_ai_content == "Cut scope until it hurts, then cut once more."
+    assert list(post.versions.values_list("kind", flat=True)) == [
+        VersionKind.AI_GENERATED,
+        VersionKind.AI_REGENERATED,
+    ]
+    assert post.reviews.count() == 1
+    generate.assert_called_once()
 
 
 @pytest.mark.django_db
@@ -199,7 +251,7 @@ def test_generation_fails_safely_when_gemini_is_not_configured():
 def test_provider_error_moves_post_to_failed_not_the_review_queue(client, owner):
     client.force_login(owner)
     with mock.patch(
-        "apps.posts.views.generate_linkedin_draft",
+        "apps.posts.tasks.generate_linkedin_draft",
         side_effect=DraftGenerationError("Provider request failed safely."),
     ):
         response = client.post(reverse("posts:generate"), {"keyword": "AI for startups"})

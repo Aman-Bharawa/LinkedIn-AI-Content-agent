@@ -154,9 +154,9 @@ def test_review_failure_and_low_scores_never_approve_or_publish(client, owner, p
     client.force_login(owner)
     draft = generated_draft(content_topic_id=topic.pk)
     with (
-        mock.patch("apps.posts.views.generate_linkedin_draft", return_value=draft),
-        mock.patch("apps.posts.views.generate_linkedin_post", return_value=draft) as regen,
-        mock.patch("apps.posts.views.review_linkedin_post", return_value=failed_review),
+        mock.patch("apps.posts.tasks.generate_linkedin_draft", return_value=draft),
+        mock.patch("apps.posts.tasks.generate_linkedin_post", return_value=draft) as regen,
+        mock.patch("apps.posts.tasks.review_linkedin_post", return_value=failed_review),
     ):
         response = client.post(reverse("posts:generate"), {"keyword": "small releases"})
 
@@ -177,9 +177,9 @@ def test_provider_review_failure_keeps_generated_draft_but_never_queues_it(clien
     client.force_login(owner)
     draft = generated_draft(content_topic_id=topic.pk)
     with (
-        mock.patch("apps.posts.views.generate_linkedin_draft", return_value=draft),
+        mock.patch("apps.posts.tasks.generate_linkedin_draft", return_value=draft),
         mock.patch(
-            "apps.posts.views.review_linkedin_post",
+            "apps.posts.tasks.review_linkedin_post",
             side_effect=DraftGenerationError("Safe reviewer failure."),
         ),
     ):
