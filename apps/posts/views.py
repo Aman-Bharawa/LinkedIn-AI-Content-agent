@@ -61,6 +61,7 @@ def generate_post(request: HttpRequest) -> HttpResponse:
         post = LinkedInPost.objects.select_for_update().get(pk=post.pk)
         post.topic = generated.topic
         post.pillar = ContentPillar.objects.get(slug=generated.pillar_slug)
+        post.content_topic_id = generated.content_topic_id
         post.hook = generated.hook
         post.content = generated.content
         post.hashtags = generated.hashtags

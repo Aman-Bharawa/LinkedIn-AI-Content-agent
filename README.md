@@ -98,8 +98,10 @@ the next sync, so change them in the files.
 
 ## MVP demo flow
 
-Sign in as the owner, enter a keyword on the home page, and generate a draft. The draft uses the
-configured Gemini model and verified knowledge, then enters the manual review queue.
+Sign in as the owner, enter a keyword on the home page, and generate a draft. The app first selects
+and stores a strategy-backed, nonduplicate topic, then asks Gemini to write the post for that exact
+topic using verified knowledge, approved examples, and recent posts. The draft enters the manual
+review queue.
 The owner can edit, approve, or reject it; edits are versioned and the original AI output is kept.
 This demo does not publish to LinkedIn. Before using live generation, set `GEMINI_API_KEY` in
 the ignored `.env` file. `GEMINI_MODEL` defaults to `gemini-3.8-flash`. Never paste an API key

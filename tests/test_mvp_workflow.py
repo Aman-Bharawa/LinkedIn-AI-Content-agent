@@ -6,10 +6,11 @@ from django.test import override_settings
 from django.urls import reverse
 
 from apps.ai.services import DraftGenerationError, GeneratedDraft, generate_linkedin_draft
+from apps.content.models import ContentTopic
 from apps.posts.models import LinkedInPost, PostStatus, PostVersion, VersionKind
 
 
-def generated_draft() -> GeneratedDraft:
+def generated_draft(*, content_topic_id: int | None = None) -> GeneratedDraft:
     return GeneratedDraft(
         topic="Ship smaller releases",
         pillar_slug="startup-product-development",
@@ -17,14 +18,19 @@ def generated_draft() -> GeneratedDraft:
         content="A small release gives a team feedback before assumptions become expensive.",
         hashtags=["startups", "product"],
         model="test-model",
+        content_topic_id=content_topic_id,
     )
 
 
 @pytest.mark.django_db
-def test_owner_keyword_creates_manual_review_post_without_live_api(client, owner):
+def test_owner_keyword_creates_manual_review_post_without_live_api(client, owner, pillar):
     client.force_login(owner)
+    topic = ContentTopic.objects.create(
+        title="Ship smaller releases", pillar=pillar, post_format="framework"
+    )
     with mock.patch(
-        "apps.posts.views.generate_linkedin_draft", return_value=generated_draft()
+        "apps.posts.views.generate_linkedin_draft",
+        return_value=generated_draft(content_topic_id=topic.pk),
     ) as call:
         response = client.post(reverse("posts:generate"), {"keyword": "small releases"})
 
@@ -38,6 +44,7 @@ def test_owner_keyword_creates_manual_review_post_without_live_api(client, owner
     assert post.source_keyword == "small releases"
     assert post.topic == "Ship smaller releases"
     assert post.pillar.slug == "startup-product-development"
+    assert post.content_topic == topic
     assert post.original_ai_content == generated_draft().content
     assert post.generation_attempts == 1
     version = PostVersion.objects.get(post=post)
@@ -113,25 +120,39 @@ def test_non_owner_cannot_generate_or_review(client, staff_user, post):
 
 @pytest.mark.django_db
 @override_settings(GEMINI_API_KEY="test-key", GEMINI_MODEL="test-model")
-def test_generation_uses_gemini_structured_output_and_configured_pillars():
-    payload = {
-        "topic": "Ship smaller releases",
+def test_generation_selects_topic_then_generates_post_for_that_topic():
+    topic_payload = {
+        "title": "Ship smaller releases",
         "pillar_slug": "startup-product-development",
+        "angle": "Reduce scope to shorten feedback loops.",
+        "format": "framework",
+    }
+    post_payload = {
         "hook": "Smaller releases make learning cheaper.",
         "post": "A small release gives a team feedback sooner.",
         "hashtags": ["startups", "product"],
     }
-    fake_response = mock.Mock(output_text=json.dumps(payload))
+    topic_response = mock.Mock(output_text=json.dumps(topic_payload))
+    post_response = mock.Mock(output_text=json.dumps(post_payload))
     with mock.patch("apps.ai.services.genai.Client") as sdk:
-        sdk.return_value.interactions.create.return_value = fake_response
+        sdk.return_value.interactions.create.side_effect = [topic_response, post_response]
         result = generate_linkedin_draft("small releases")
 
-    assert result.topic == payload["topic"]
-    assert result.pillar_slug == payload["pillar_slug"]
-    call = sdk.return_value.interactions.create.call_args.kwargs
-    assert call["store"] is False
-    assert call["response_format"]["mime_type"] == "application/json"
-    assert call["response_format"]["schema"]["properties"]["pillar_slug"]["enum"]
+    assert result.topic == topic_payload["title"]
+    assert result.pillar_slug == topic_payload["pillar_slug"]
+    assert result.hook == post_payload["hook"]
+    topic_call, post_call = sdk.return_value.interactions.create.call_args_list
+    assert topic_call.kwargs["store"] is False
+    assert topic_call.kwargs["response_format"]["schema"]["properties"]["pillar_slug"]["enum"]
+    assert post_call.kwargs["store"] is False
+    assert post_call.kwargs["response_format"]["mime_type"] == "application/json"
+    assert "Ship smaller releases" in post_call.kwargs["input"]
+    assert "Reduce scope to shorten feedback loops." in post_call.kwargs["input"]
+    assert result.content_topic_id is not None
+    assert result.model == "test-model"
+    topic = ContentTopic.objects.get(pk=result.content_topic_id)
+    assert topic.used_count == 1
+    assert topic.last_used_at is not None
 
 
 @pytest.mark.django_db
