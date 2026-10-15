@@ -1,12 +1,75 @@
 {% extends "base.html" %}
 
+{% block title %}Drafts · LinkedIn AI Content Agent{% endblock %}
+
 {% block content %}
-  <div class="card shadow-sm">
-    <div class="card-body">
-      <h1 class="h4 card-title">Setup is running</h1>
-      <p class="card-text text-body-secondary mb-0">
-        The project foundation is in place. The owner review dashboard arrives in a later milestone.
-      </p>
+  <div class="row justify-content-center">
+    <div class="col-xl-9">
+      <div class="mb-4">
+        <p class="text-uppercase small fw-semibold text-primary mb-1">Owner workspace</p>
+        <h1 class="display-6 fw-semibold">Turn an idea into a draft.</h1>
+        <p class="lead text-secondary mb-0">Give the agent a topic. You stay in control of every post.</p>
+      </div>
+
+      <section class="card shadow-sm mb-5" aria-labelledby="generate-heading">
+        <div class="card-body p-4">
+          <h2 id="generate-heading" class="h4">Create a LinkedIn draft</h2>
+          <p class="text-secondary">The agent uses your verified knowledge and writing guidance, then adds the draft to your review queue.</p>
+          <form method="post" action="{% url 'posts:generate' %}">
+            {% csrf_token %}
+            <label for="id_keyword" class="form-label fw-medium">{{ form.keyword.label }}</label>
+            {{ form.keyword }}
+            {% if form.keyword.errors %}<div class="text-danger small mt-1">{{ form.keyword.errors|join:", " }}</div>{% endif %}
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-3">
+              <span class="small text-secondary">AI drafts are never published automatically.</span>
+              <button type="submit" class="btn btn-primary btn-lg">Generate draft</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="mb-5" aria-labelledby="queue-heading">
+        <div class="d-flex align-items-baseline justify-content-between mb-3">
+          <h2 id="queue-heading" class="h3 mb-0">Review queue</h2>
+          <span class="badge rounded-pill text-bg-primary">{{ queue|length }} waiting</span>
+        </div>
+        {% if queue %}
+          <div class="list-group shadow-sm">
+            {% for post in queue %}
+              <a class="list-group-item list-group-item-action p-3" href="{% url 'posts:detail' post.pk %}">
+                <div class="d-flex justify-content-between gap-3">
+                  <div>
+                    <span class="badge text-bg-light border mb-2">{{ post.get_origin_display }}</span>
+                    <h3 class="h5 mb-1">{{ post.topic }}</h3>
+                    <p class="small text-secondary mb-0">{{ post.pillar.name|default:"Pillar not assigned" }} · {{ post.created_at|date:"M j, g:i a" }}</p>
+                  </div>
+                  <span class="badge text-bg-warning align-self-start">{{ post.get_status_display }}</span>
+                </div>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="border rounded-3 bg-white p-4 text-center text-secondary">
+            Your queue is clear. Generate a draft to start a review.
+          </div>
+        {% endif %}
+      </section>
+
+      <section aria-labelledby="history-heading">
+        <h2 id="history-heading" class="h3 mb-3">Recent history</h2>
+        {% if history %}
+          <div class="list-group">
+            {% for post in history %}
+              <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center gap-3" href="{% url 'posts:detail' post.pk %}">
+                <span><span class="badge text-bg-light border me-2">{{ post.get_origin_display }}</span>{{ post.topic }}</span>
+                <span class="badge {% if post.status == 'approved' %}text-bg-success{% elif post.status == 'rejected' or post.status == 'failed' %}text-bg-secondary{% else %}text-bg-light border{% endif %}">{{ post.get_status_display }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-secondary">Your reviewed drafts will appear here.</p>
+        {% endif %}
+      </section>
     </div>
   </div>
 {% endblock %}

@@ -4,6 +4,10 @@ from django.shortcuts import render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
 
+from apps.accounts.models import is_owner
+from apps.posts.forms import GeneratePostForm
+from apps.posts.models import LinkedInPost, PostStatus
+
 from . import health
 
 
@@ -32,4 +36,20 @@ def readiness(request: HttpRequest) -> JsonResponse:
 @require_GET
 @login_required
 def home(request: HttpRequest) -> HttpResponse:
-    return render(request, "core/home.html")
+    if not is_owner(request.user):
+        return HttpResponse("Owner access required.", status=403)
+    queue = (
+        LinkedInPost.objects.filter(
+            status__in=[PostStatus.PENDING_APPROVAL, PostStatus.NEEDS_MANUAL_REVIEW]
+        )
+        .select_related("pillar")
+        .order_by("created_at")
+    )
+    history = LinkedInPost.objects.exclude(
+        status__in=[PostStatus.PENDING_APPROVAL, PostStatus.NEEDS_MANUAL_REVIEW]
+    ).select_related("pillar")[:12]
+    return render(
+        request,
+        "core/home.html",
+        {"form": GeneratePostForm(), "queue": queue, "history": history},
+    )

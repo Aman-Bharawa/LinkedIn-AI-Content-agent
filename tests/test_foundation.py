@@ -31,7 +31,9 @@ def test_home_page_requires_login(client):
 
 @pytest.mark.django_db
 def test_home_page_renders_with_bootstrap_for_owner(client, django_user_model):
-    owner = django_user_model.objects.create_user(username="owner", password="unused-in-test")
+    owner = django_user_model.objects.create_superuser(
+        username="owner", email="owner@example.com", password="unused-in-test"
+    )
     client.force_login(owner)
 
     response = client.get(reverse("core:home"))

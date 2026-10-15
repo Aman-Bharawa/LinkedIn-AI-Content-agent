@@ -35,9 +35,9 @@ class PostPublicationInline(ReadOnlyInline):
 class LinkedInPostAdmin(admin.ModelAdmin):
     """Inspection view. Status changes go through the owner dashboard (Milestone 7)."""
 
-    list_display = ("__str__", "status", "pillar", "ai_review_score", "created_at")
-    list_filter = ("status", "pillar")
-    search_fields = ("topic", "hook", "content")
+    list_display = ("__str__", "origin", "status", "pillar", "ai_review_score", "created_at")
+    list_filter = ("origin", "status", "pillar")
+    search_fields = ("topic", "source_keyword", "hook", "content")
     inlines = [PostVersionInline, PostReviewInline, PostPublicationInline]
 
     def has_add_permission(self, request: HttpRequest) -> bool:

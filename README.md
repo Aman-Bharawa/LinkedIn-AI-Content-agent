@@ -7,7 +7,7 @@ the implementation brief.
 - Source of truth: [docs/IMPLEMENTATION_BRIEF.md](docs/IMPLEMENTATION_BRIEF.md)
 - Decisions and deviations: [docs/DECISIONS.md](docs/DECISIONS.md)
 
-**Status:** Milestone 3 — content strategy configuration (complete; awaiting owner review).
+**Status:** Friday MVP demo flow — in progress (Milestone 3 complete).
 
 ## Stack
 
@@ -27,6 +27,7 @@ apps/core/        health endpoints, home page, audit log, token encryption (secu
 apps/accounts/    LinkedIn account (encrypted tokens), owner check
 apps/content/     weighted strategy groups, pillars, topics, verified knowledge, writing examples
 apps/posts/       posts, reviews, versions, publications, status state machine (state.py)
+apps/ai/          OpenAI Responses API draft generation using verified knowledge
 templates/        base.html (Bootstrap + HTMX) and page templates
 static/vendor/    pinned Bootstrap and HTMX files (see VENDOR.md)
 tests/            pytest suite
@@ -35,7 +36,7 @@ docker/           Docker Compose for local PostgreSQL and Redis
 docs/             implementation brief and decisions log
 ```
 
-The `ai` and `linkedin` apps are added in their milestones.
+The `linkedin` app is added in its later milestone.
 Django's built-in admin is mounted at `/django-admin/` so `/admin/` is free for the owner dashboard.
 
 ## First-time setup (Windows)
@@ -94,6 +95,14 @@ The AI may only use what is in `knowledge/`:
 After editing any of these, run `uv run python manage.py sync_knowledge`. Records can also be
 reviewed in Django admin (`/django-admin/`); facts that came from the files are overwritten by
 the next sync, so change them in the files.
+
+## MVP demo flow
+
+Sign in as the owner, enter a keyword on the home page, and generate a draft. The draft uses the
+configured OpenAI Responses API model and verified knowledge, then enters the manual review queue.
+The owner can edit, approve, or reject it; edits are versioned and the original AI output is kept.
+This demo does not publish to LinkedIn. Before using live generation, set `OPENAI_API_KEY` and
+`OPENAI_MODEL` in the ignored `.env` file. Never paste an API key into chat or commit it.
 
 ## Checks (run before finishing any milestone)
 

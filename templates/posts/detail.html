@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.topic }} · LinkedIn AI Content Agent{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-xl-9">
+      <a href="{% url 'core:home' %}" class="text-decoration-none">← Back to drafts</a>
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mt-3 mb-4">
+        <div>
+          <div class="d-flex gap-2 mb-2">
+            <span class="badge text-bg-light border">{{ post.get_origin_display }}</span>
+            <span class="badge {% if post.status == 'approved' %}text-bg-success{% elif post.status == 'rejected' or post.status == 'failed' %}text-bg-secondary{% else %}text-bg-warning{% endif %}">{{ post.get_status_display }}</span>
+          </div>
+          <h1 class="h2 mb-1">{{ post.topic }}</h1>
+          <p class="text-secondary mb-0">{{ post.pillar.name|default:"Pillar not assigned" }} · Created {{ post.created_at|date:"M j, Y, g:i a" }}</p>
+        </div>
+        {% if can_edit %}<a class="btn btn-outline-primary" href="{% url 'posts:edit' post.pk %}">Edit draft</a>{% endif %}
+      </div>
+
+      {% if can_review %}
+        <div class="alert alert-info" role="note">
+          <strong>Owner review required.</strong> Verify every factual statement against your sources before approval. This MVP does not publish posts to LinkedIn.
+        </div>
+      {% elif post.status == 'approved' %}
+        <div class="alert alert-success" role="status">You approved this draft. Publishing remains a separate manual step.</div>
+      {% elif post.status == 'failed' %}
+        <div class="alert alert-danger" role="alert">{{ post.last_error }}</div>
+      {% elif post.status == 'rejected' %}
+        <div class="alert alert-secondary" role="status">This post was rejected and kept in history.{% if post.rejection_reason %} Reason: {{ post.rejection_reason }}{% endif %}</div>
+      {% endif %}
+
+      <article class="card shadow-sm mb-4">
+        <div class="card-body p-4 p-md-5">
+          <h2 class="h5 text-secondary mb-3">{{ post.hook }}</h2>
+          <div class="fs-5" style="white-space: pre-wrap">{{ post.content }}</div>
+          {% if post.hashtags %}
+            <p class="text-primary mt-4 mb-0">{% for tag in post.hashtags %}#{{ tag }}{% if not forloop.last %} {% endif %}{% endfor %}</p>
+          {% endif %}
+        </div>
+      </article>
+
+      {% if can_review %}
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-5">
+          <form method="post" action="{% url 'posts:approve' post.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success btn-lg">Approve draft</button>
+          </form>
+          <form method="post" action="{% url 'posts:reject' post.pk %}" class="d-flex gap-2">
+            {% csrf_token %}
+            <input class="form-control" type="text" name="reason" maxlength="2000" placeholder="Optional rejection note" aria-label="Optional rejection note">
+            <button type="submit" class="btn btn-outline-danger">Reject</button>
+          </form>
+        </div>
+      {% endif %}
+
+      <section class="mb-5" aria-labelledby="versions-heading">
+        <h2 id="versions-heading" class="h4">Version history</h2>
+        <div class="list-group">
+          {% for version in versions %}
+            <div class="list-group-item d-flex justify-content-between gap-3">
+              <span>Version {{ version.version_number }} · {{ version.get_kind_display }}</span>
+              <span class="small text-secondary">{{ version.created_at|date:"M j, Y, g:i a" }}</span>
+            </div>
+          {% empty %}
+            <div class="list-group-item text-secondary">No saved versions.</div>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+  </div>
+{% endblock %}

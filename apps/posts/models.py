@@ -34,6 +34,11 @@ class PostStatus(models.TextChoices):
     NEEDS_MANUAL_REVIEW = "needs_manual_review", "Needs manual review"
 
 
+class PostOrigin(models.TextChoices):
+    KEYWORD = "keyword", "Keyword"
+    AUTO = "auto", "Auto draft"
+
+
 # Statuses where the post must have real content and a pillar.
 CONTENT_REQUIRED_STATUSES = (
     PostStatus.PENDING_APPROVAL,
@@ -74,8 +79,11 @@ class ImmutableFieldError(ValidationError):
 
 class LinkedInPost(TimeStampedModel):
     Status = PostStatus
+    Origin = PostOrigin
 
     topic = models.CharField(max_length=255, blank=True)
+    origin = models.CharField(max_length=16, choices=PostOrigin.choices, default=PostOrigin.KEYWORD)
+    source_keyword = models.CharField(max_length=255, blank=True)
     content_topic = models.ForeignKey(
         "content.ContentTopic",
         null=True,
@@ -160,6 +168,7 @@ class LinkedInPost(TimeStampedModel):
         ]
         indexes = [
             models.Index(fields=["status", "-created_at"], name="post_status_created_idx"),
+            models.Index(fields=["origin", "-created_at"], name="post_origin_created_idx"),
             models.Index(fields=["scheduled_for"], name="post_scheduled_for_idx"),
             models.Index(fields=["published_at"], name="post_published_at_idx"),
             models.Index(fields=["pillar", "-created_at"], name="post_pillar_created_idx"),

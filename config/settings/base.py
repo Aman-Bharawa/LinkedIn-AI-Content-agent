@@ -114,6 +114,11 @@ KNOWLEDGE_DIR = BASE_DIR / "knowledge"
 # Fernet keys for LinkedIn tokens, newest first. Dedicated; never the SECRET_KEY.
 TOKEN_ENCRYPTION_KEYS = env.list("TOKEN_ENCRYPTION_KEYS", default=[])
 
+# OpenAI Responses API. API credentials stay in local .env or the deployment secret store.
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+OPENAI_MODEL = env("OPENAI_MODEL", default="")
+OPENAI_TIMEOUT_SECONDS = env.int("OPENAI_TIMEOUT_SECONDS", default=45)
+
 # Redis (Memurai on Windows) backs Celery and, later, task locks.
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 
