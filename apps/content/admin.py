@@ -21,7 +21,7 @@ class ContentPillarAdmin(admin.ModelAdmin):
 
 @admin.register(ContentTopic)
 class ContentTopicAdmin(admin.ModelAdmin):
-    list_display = ("title", "pillar", "used_count", "last_used_at", "is_active")
+    list_display = ("title", "pillar", "post_format", "used_count", "last_used_at", "is_active")
     list_filter = ("is_active", "pillar")
     search_fields = ("title", "angle")
     readonly_fields = ("normalized_title", "used_count", "last_used_at")

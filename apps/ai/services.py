@@ -4,18 +4,25 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import timedelta
+from difflib import SequenceMatcher
 from typing import Any
 
 from django.conf import settings
+from django.db import IntegrityError, transaction
+from django.utils import timezone
 from google import genai
 from google.genai import errors
 
 from apps.content.knowledge import load_knowledge_context
-from apps.content.models import ContentPillar
+from apps.content.models import ContentFormat, ContentPillar, ContentTopic, normalize_title
 from apps.content.strategy import InvalidContentStrategy, get_pillar_allocations
-from apps.posts.models import normalize_hashtags
+from apps.posts.models import LinkedInPost, normalize_hashtags
 
 PROMPT_VERSION = "linkedin-post-v1"
+TOPIC_PROMPT_VERSION = "linkedin-topic-v1"
+MAX_TOPIC_ATTEMPTS = 3
+RECENT_TOPIC_DAYS = 90
 
 
 class DraftGenerationError(Exception):
@@ -31,6 +38,17 @@ class GeneratedDraft:
     hashtags: list[str]
     model: str
     prompt_version: str = PROMPT_VERSION
+
+
+@dataclass(frozen=True)
+class SelectedTopic:
+    title: str
+    pillar_slug: str
+    angle: str
+    post_format: str
+    topic_id: int
+    model: str
+    prompt_version: str = TOPIC_PROMPT_VERSION
 
 
 def _schema(pillar_slugs: list[str]) -> dict[str, Any]:
@@ -50,6 +68,160 @@ def _schema(pillar_slugs: list[str]) -> dict[str, Any]:
         },
         "required": ["topic", "pillar_slug", "hook", "post", "hashtags"],
     }
+
+
+def _topic_schema(pillar_slugs: list[str]) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "title": {"type": "string"},
+            "pillar_slug": {"type": "string", "enum": pillar_slugs},
+            "angle": {"type": "string"},
+            "format": {"type": "string", "enum": list(ContentFormat.values)},
+        },
+        "required": ["title", "pillar_slug", "angle", "format"],
+    }
+
+
+def _recent_topic_titles() -> list[str]:
+    cutoff = timezone.now() - timedelta(days=RECENT_TOPIC_DAYS)
+    stored = list(
+        ContentTopic.objects.filter(is_active=True)
+        .order_by("-last_used_at", "-created_at")
+        .values_list("title", flat=True)[:100]
+    )
+    posts = list(
+        LinkedInPost.objects.filter(created_at__gte=cutoff)
+        .exclude(topic="")
+        .order_by("-created_at")
+        .values_list("topic", flat=True)[:100]
+    )
+    return list(dict.fromkeys([*stored, *posts]))
+
+
+def _is_duplicate_topic(title: str, recent_titles: list[str]) -> bool:
+    normalized = normalize_title(title)
+    if not normalized:
+        return True
+    candidate_words = set(normalized.split())
+    for existing in recent_titles:
+        prior = normalize_title(existing)
+        if normalized == prior:
+            return True
+        prior_words = set(prior.split())
+        if candidate_words and prior_words:
+            overlap = len(candidate_words & prior_words) / len(candidate_words | prior_words)
+            if overlap >= 0.8 or SequenceMatcher(None, normalized, prior).ratio() >= 0.88:
+                return True
+    return False
+
+
+def select_topic(keyword: str = "") -> SelectedTopic:
+    """Select and persist one nonduplicate topic using the configured strategy and knowledge."""
+    api_key = settings.GEMINI_API_KEY
+    model = settings.GEMINI_MODEL
+    if not api_key or not model:
+        raise DraftGenerationError("AI generation is not configured. Set GEMINI_API_KEY in .env.")
+    try:
+        allocations = get_pillar_allocations()
+    except InvalidContentStrategy as exc:
+        raise DraftGenerationError(
+            "The content strategy needs correction before generating."
+        ) from exc
+    pillar_slugs = list(allocations)
+    if not pillar_slugs:
+        raise DraftGenerationError("No active content pillars are configured.")
+    pillar_names = dict(
+        ContentPillar.objects.filter(slug__in=pillar_slugs).values_list("slug", "name")
+    )
+    recent_titles = _recent_topic_titles()
+    recent_json = json.dumps(recent_titles[-50:], ensure_ascii=False)
+    strategy_json = json.dumps(
+        [
+            {"slug": slug, "name": pillar_names[slug], "target_share": str(allocations[slug])}
+            for slug in pillar_slugs
+        ]
+    )
+    client = genai.Client(
+        api_key=api_key, http_options={"timeout": settings.GEMINI_TIMEOUT_SECONDS * 1000}
+    )
+    system_prompt = """Choose one useful LinkedIn topic. Follow the supplied verified knowledge
+and writing rules. Never invent personal stories, customers, metrics, results, or company facts.
+Do not choose a topic that duplicates the recent list. Prefer the owner's keyword when supplied.
+Choose one configured pillar and one allowed post format. Return only the requested JSON."""
+    prompt = f"""Owner keyword (optional): {keyword.strip() or "(none)"}
+
+Configured pillars and target shares:
+{strategy_json}
+
+Allowed formats: {json.dumps(list(ContentFormat.values))}
+Recently used topics to avoid: {recent_json}
+
+Verified knowledge and writing rules:
+{_knowledge_prompt()}
+
+Return a concise topic title, pillar slug, a specific angle, and format."""
+    for _attempt in range(MAX_TOPIC_ATTEMPTS):
+        try:
+            response = client.interactions.create(
+                model=model,
+                input=f"{system_prompt}\n\n{prompt}",
+                response_format={
+                    "type": "text",
+                    "mime_type": "application/json",
+                    "schema": _topic_schema(pillar_slugs),
+                },
+                store=False,
+            )
+        except errors.APIError as exc:
+            raise DraftGenerationError(
+                "The AI provider could not select a topic. Check the API configuration and retry."
+            ) from exc
+        try:
+            data = json.loads(response.output_text)
+            title = str(data["title"]).strip()
+            pillar_slug = str(data["pillar_slug"]).strip()
+            angle = str(data["angle"]).strip()
+            post_format = str(data["format"]).strip()
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            raise DraftGenerationError(
+                "The AI topic response was incomplete. Please retry."
+            ) from exc
+        if not title or len(title) > 255 or not angle:
+            raise DraftGenerationError("The AI topic response was incomplete. Please retry.")
+        if pillar_slug not in pillar_slugs or post_format not in ContentFormat.values:
+            raise DraftGenerationError("The AI selected an unavailable pillar or post format.")
+        if _is_duplicate_topic(title, recent_titles):
+            recent_titles.append(title)
+            prompt = (
+                f"{prompt}\n\nThat selection was too similar to a prior topic. "
+                "Choose a clearly different topic."
+            )
+            continue
+        try:
+            with transaction.atomic():
+                topic = ContentTopic.objects.create(
+                    title=title,
+                    angle=angle,
+                    pillar_id=ContentPillar.objects.only("pk").get(slug=pillar_slug).pk,
+                    post_format=post_format,
+                )
+        except IntegrityError:
+            recent_titles.append(title)
+            continue
+        return SelectedTopic(
+            title=topic.title,
+            pillar_slug=pillar_slug,
+            angle=angle,
+            post_format=post_format,
+            topic_id=topic.pk,
+            model=model,
+        )
+    raise DraftGenerationError(
+        "The AI could not find a sufficiently distinct topic after three attempts. "
+        "Please try a different keyword."
+    )
 
 
 def _knowledge_prompt() -> str:

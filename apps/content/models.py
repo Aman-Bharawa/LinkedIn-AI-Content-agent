@@ -88,10 +88,22 @@ class ContentPillar(TimeStampedModel):
         return Decimal(base + (1 if index < remainder else 0)) / 100
 
 
+class ContentFormat(models.TextChoices):
+    LESSON = "lesson", "Lesson"
+    HOW_TO = "how_to", "How to"
+    CONTRARIAN = "contrarian", "Contrarian"
+    FRAMEWORK = "framework", "Framework"
+    MYTH_VS_REALITY = "myth_vs_reality", "Myth vs reality"
+    QUESTION = "question", "Question"
+
+
 class ContentTopic(TimeStampedModel):
     title = models.CharField(max_length=255)
     normalized_title = models.CharField(max_length=255, unique=True, editable=False)
     angle = models.TextField(blank=True, help_text="Description / angle for the topic.")
+    post_format = models.CharField(
+        max_length=32, choices=ContentFormat.choices, default=ContentFormat.LESSON
+    )
     pillar = models.ForeignKey(ContentPillar, on_delete=models.PROTECT, related_name="topics")
     used_count = models.PositiveIntegerField(default=0)
     last_used_at = models.DateTimeField(null=True, blank=True)
