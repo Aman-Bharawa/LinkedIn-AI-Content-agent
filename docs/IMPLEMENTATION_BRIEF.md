@@ -55,7 +55,7 @@ Use a conventional, maintainable monolith. Pin exact dependency versions in a lo
 | Database | PostgreSQL 16 or newer supported release | Use relational constraints and transactions for post state and publishing safety. Enable `pg_trgm` when implementing similarity-based duplicate checks. |
 | Background work | Celery 5.6 stable with Redis 7 | Run API calls and scheduled draft generation outside web requests. Keep publisher retries separate from generation retries. |
 | Web UI | Django templates with a small amount of HTMX or plain JavaScript | Build the review workflow server-side. React is not required. |
-| OpenAI | Official OpenAI Python SDK and Responses API | Use Structured Outputs/JSON Schema for topic, post, and review results. Keep model ID configurable. |
+| Gemini | Official Google GenAI Python SDK and Interactions API | Use JSON Schema structured output for topic, post, and review results. Keep model ID configurable. |
 | LinkedIn | Official LinkedIn OAuth 2.0 Authorization Code flow and Posts API | Confirm the app has the required LinkedIn product access and scopes before promising publication. Do not automate browser posting. |
 | Tests and quality | pytest, pytest-django, Ruff, mypy where useful, Bandit, pip-audit | Run these in CI and before completing each milestone. |
 | Local environment | Docker Compose | Start PostgreSQL and Redis locally. Keep production configuration external to the repository. |
@@ -223,7 +223,7 @@ Each milestone is a reviewable increment. Do not start the next milestone until 
 
 ### Milestone 4 — AI topic selection
 
-**Build:** `Ai.select_topic` service using the configured strategy, active verified knowledge, recent posts/topics, an optional owner keyword, and OpenAI Structured Outputs. With a keyword, the topic must be about that keyword; without one, the AI chooses. Return JSON fields `pillar`, `topic`, `angle`, and `format`. Avoid recently used topics, exact and near duplicates, unsupported personal stories, and excessive promotion. Record accepted topics and cap retries.
+**Build:** `Ai.select_topic` service using the configured strategy, active verified knowledge, recent posts/topics, an optional owner keyword, and Gemini structured output. With a keyword, the topic must be about that keyword; without one, the AI chooses. Return JSON fields `pillar`, `topic`, `angle`, and `format`. Avoid recently used topics, exact and near duplicates, unsupported personal stories, and excessive promotion. Record accepted topics and cap retries.
 
 **Acceptance:** With a mocked API response, the service returns a schema-valid configured pillar and a new topic; tests cover duplicate rejection, invalid output, missing key, API errors, and bounded retry. Do not make live API calls in automated tests.
 
@@ -304,7 +304,7 @@ The following are release-blocking tests:
 11. Unsupported claims block movement to owner approval or are clearly flagged for manual review.
 12. Scheduled tasks create drafts only; they never publish.
 
-Use mocked OpenAI and LinkedIn clients in unit/integration tests. Live API verification belongs in an explicit manual test environment and must never run as part of the normal test suite.
+Use mocked Gemini and LinkedIn clients in unit/integration tests. Live API verification belongs in an explicit manual test environment and must never run as part of the normal test suite.
 
 ## 8. Security and privacy requirements
 
@@ -351,7 +351,7 @@ Default `AUTOMATIC_PUBLISHING_ENABLED=false`. Provide a global kill switch. Keep
 2. Before each milestone, inspect the repository and summarize the narrow implementation plan.
 3. Add tests alongside business logic; test external APIs with mocks.
 4. Run pytest, Ruff, Django system checks, and applicable security/dependency checks. Fix failures instead of weakening tests.
-5. For OpenAI or LinkedIn changes, inspect current official API docs and record relevant API versions, permissions, and limitations in the implementation notes.
+5. For Gemini or LinkedIn changes, inspect current official API docs and record relevant API versions, permissions, and limitations in the implementation notes.
 6. Do not make real API calls, publish content, or change connected accounts without explicit approval for that manual verification step.
 7. At each milestone's completion, report files changed, tests run, known limitations, exact manual verification steps, and wait for owner review before moving on.
 8. Never commit credentials, and do not create commits unless requested by the owner.
@@ -375,8 +375,8 @@ Recheck documentation when implementing the corresponding milestone; API version
 - [Django supported versions and downloads](https://www.djangoproject.com/download/)
 - [Django 5.2 release notes and supported Python versions](https://docs.djangoproject.com/en/5.2/releases/5.2/)
 - [Celery: first steps with Django](https://docs.celeryq.dev/en/stable/django/first-steps-with-django.html)
-- [OpenAI Responses API reference](https://platform.openai.com/docs/api-reference/responses)
-- [OpenAI Structured Outputs guide](https://platform.openai.com/docs/guides/structured-outputs)
+- [Gemini API reference](https://ai.google.dev/gemini-api/docs)
+- [Gemini structured output guide](https://ai.google.dev/gemini-api/docs/structured-output?lang=python)
 - [LinkedIn Authorization Code Flow](https://learn.microsoft.com/en-us/linkedin/shared/authentication/authorization-code-flow)
 - [LinkedIn Posts API](https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/posts-api)
 - [LinkedIn token refresh](https://learn.microsoft.com/en-us/linkedin/shared/authentication/programmatic-refresh-tokens)

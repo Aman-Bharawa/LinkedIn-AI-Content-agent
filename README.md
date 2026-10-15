@@ -27,7 +27,7 @@ apps/core/        health endpoints, home page, audit log, token encryption (secu
 apps/accounts/    LinkedIn account (encrypted tokens), owner check
 apps/content/     weighted strategy groups, pillars, topics, verified knowledge, writing examples
 apps/posts/       posts, reviews, versions, publications, status state machine (state.py)
-apps/ai/          OpenAI Responses API draft generation using verified knowledge
+apps/ai/          Gemini API draft generation using verified knowledge
 templates/        base.html (Bootstrap + HTMX) and page templates
 static/vendor/    pinned Bootstrap and HTMX files (see VENDOR.md)
 tests/            pytest suite
@@ -99,10 +99,16 @@ the next sync, so change them in the files.
 ## MVP demo flow
 
 Sign in as the owner, enter a keyword on the home page, and generate a draft. The draft uses the
-configured OpenAI Responses API model and verified knowledge, then enters the manual review queue.
+configured Gemini model and verified knowledge, then enters the manual review queue.
 The owner can edit, approve, or reject it; edits are versioned and the original AI output is kept.
-This demo does not publish to LinkedIn. Before using live generation, set `OPENAI_API_KEY` and
-`OPENAI_MODEL` in the ignored `.env` file. Never paste an API key into chat or commit it.
+This demo does not publish to LinkedIn. Before using live generation, set `GEMINI_API_KEY` in
+the ignored `.env` file. `GEMINI_MODEL` defaults to `gemini-3.8-flash`. Never paste an API key
+into chat or commit it.
+
+Google AI Studio offers a free Gemini API tier for eligible models, subject to changing quotas.
+Google may use content submitted through the unpaid tier to improve its products. Do not include
+confidential or sensitive personal information in generation prompts; check the current [Gemini
+API pricing and data terms](https://ai.google.dev/gemini-api/docs/pricing) before production use.
 
 ## Checks (run before finishing any milestone)
 
@@ -119,7 +125,7 @@ uv run pip-audit -r requirements-audit.txt --require-hashes --disable-pip
 ```
 
 CI (`.github/workflows/ci.yml`) runs the same steps against PostgreSQL and Redis service containers.
-Automated tests never call OpenAI or LinkedIn.
+Automated tests never call Gemini or LinkedIn.
 
 ## Secrets
 

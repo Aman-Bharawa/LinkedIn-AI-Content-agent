@@ -112,8 +112,8 @@ def test_non_owner_cannot_generate_or_review(client, staff_user, post):
 
 
 @pytest.mark.django_db
-@override_settings(OPENAI_API_KEY="test-key", OPENAI_MODEL="test-model")
-def test_generation_uses_responses_structured_output_and_configured_pillars():
+@override_settings(GEMINI_API_KEY="test-key", GEMINI_MODEL="test-model")
+def test_generation_uses_gemini_structured_output_and_configured_pillars():
     payload = {
         "topic": "Ship smaller releases",
         "pillar_slug": "startup-product-development",
@@ -122,22 +122,22 @@ def test_generation_uses_responses_structured_output_and_configured_pillars():
         "hashtags": ["startups", "product"],
     }
     fake_response = mock.Mock(output_text=json.dumps(payload))
-    with mock.patch("apps.ai.services.OpenAI") as sdk:
-        sdk.return_value.responses.create.return_value = fake_response
+    with mock.patch("apps.ai.services.genai.Client") as sdk:
+        sdk.return_value.interactions.create.return_value = fake_response
         result = generate_linkedin_draft("small releases")
 
     assert result.topic == payload["topic"]
     assert result.pillar_slug == payload["pillar_slug"]
-    call = sdk.return_value.responses.create.call_args.kwargs
+    call = sdk.return_value.interactions.create.call_args.kwargs
     assert call["store"] is False
-    assert call["text"]["format"]["type"] == "json_schema"
-    assert call["text"]["format"]["schema"]["properties"]["pillar_slug"]["enum"]
+    assert call["response_format"]["mime_type"] == "application/json"
+    assert call["response_format"]["schema"]["properties"]["pillar_slug"]["enum"]
 
 
 @pytest.mark.django_db
-@override_settings(OPENAI_API_KEY="", OPENAI_MODEL="")
-def test_generation_fails_safely_when_openai_is_not_configured():
-    with pytest.raises(DraftGenerationError, match="OPENAI_API_KEY and OPENAI_MODEL"):
+@override_settings(GEMINI_API_KEY="", GEMINI_MODEL="")
+def test_generation_fails_safely_when_gemini_is_not_configured():
+    with pytest.raises(DraftGenerationError, match="GEMINI_API_KEY"):
         generate_linkedin_draft("AI for startups")
 
 

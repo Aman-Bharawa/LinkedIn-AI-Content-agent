@@ -1,4 +1,4 @@
-"""OpenAI-backed LinkedIn draft generation using verified project knowledge."""
+"""Gemini-backed LinkedIn draft generation using verified project knowledge."""
 
 from __future__ import annotations
 
@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from django.conf import settings
-from openai import APIError, OpenAI
+from google import genai
+from google.genai import errors
 
 from apps.content.knowledge import load_knowledge_context
 from apps.content.models import ContentPillar
@@ -75,12 +76,10 @@ def _knowledge_prompt() -> str:
 
 def generate_linkedin_draft(keyword: str) -> GeneratedDraft:
     """Generate a structured, human-review-only draft from an owner keyword."""
-    api_key = settings.OPENAI_API_KEY
-    model = settings.OPENAI_MODEL
+    api_key = settings.GEMINI_API_KEY
+    model = settings.GEMINI_MODEL
     if not api_key or not model:
-        raise DraftGenerationError(
-            "AI generation is not configured. Set OPENAI_API_KEY and OPENAI_MODEL in .env."
-        )
+        raise DraftGenerationError("AI generation is not configured. Set GEMINI_API_KEY in .env.")
 
     try:
         allocations = get_pillar_allocations()
@@ -117,23 +116,20 @@ verified knowledge. If the topic would require such a claim, frame it as a gener
 principle instead."""
 
     try:
-        client = OpenAI(api_key=api_key, timeout=settings.OPENAI_TIMEOUT_SECONDS, max_retries=0)
-        response = client.responses.create(
+        client = genai.Client(
+            api_key=api_key, http_options={"timeout": settings.GEMINI_TIMEOUT_SECONDS * 1000}
+        )
+        response = client.interactions.create(
             model=model,
-            instructions=system_prompt,
-            input=user_prompt,
-            max_output_tokens=1200,
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "linkedin_post_draft",
-                    "strict": True,
-                    "schema": _schema(pillar_slugs),
-                }
+            input=f"{system_prompt}\n\n{user_prompt}",
+            response_format={
+                "type": "text",
+                "mime_type": "application/json",
+                "schema": _schema(pillar_slugs),
             },
             store=False,
         )
-    except APIError as exc:
+    except errors.APIError as exc:
         raise DraftGenerationError(
             "The AI provider could not generate a draft. Check the API configuration and retry."
         ) from exc
