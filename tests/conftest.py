@@ -27,7 +27,7 @@ def staff_user(django_user_model):
 
 @pytest.fixture
 def pillar(db):
-    return ContentPillar.objects.create(name="Founder lessons", slug="founder-lessons")
+    return ContentPillar.objects.get(slug="founder-lessons")
 
 
 @pytest.fixture

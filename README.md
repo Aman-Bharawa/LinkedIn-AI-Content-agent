@@ -7,7 +7,7 @@ the implementation brief.
 - Source of truth: [docs/IMPLEMENTATION_BRIEF.md](docs/IMPLEMENTATION_BRIEF.md)
 - Decisions and deviations: [docs/DECISIONS.md](docs/DECISIONS.md)
 
-**Status:** Milestone 2 — knowledge base.
+**Status:** Milestone 3 — content strategy configuration (complete; awaiting owner review).
 
 ## Stack
 
@@ -25,7 +25,7 @@ the implementation brief.
 config/           settings (base/dev/test/prod), URLs, Celery app
 apps/core/        health endpoints, home page, audit log, token encryption (security.py)
 apps/accounts/    LinkedIn account (encrypted tokens), owner check
-apps/content/     pillars, topics, verified knowledge, writing examples
+apps/content/     weighted strategy groups, pillars, topics, verified knowledge, writing examples
 apps/posts/       posts, reviews, versions, publications, status state machine (state.py)
 templates/        base.html (Bootstrap + HTMX) and page templates
 static/vendor/    pinned Bootstrap and HTMX files (see VENDOR.md)

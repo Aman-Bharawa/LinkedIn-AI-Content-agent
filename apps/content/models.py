@@ -23,16 +23,43 @@ def normalize_title(title: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+class ContentGroup(TimeStampedModel):
+    """A weighted strategy group that contains one or more content pillars."""
+
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=100, unique=True)
+    target_share = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        help_text=(
+            "Target percentage of posts allocated to this group; active groups must total 100%."
+        ),
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(target_share__gte=0, target_share__lte=100),
+                name="content_group_share_range",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class ContentPillar(TimeStampedModel):
     """A content pillar such as "Founder lessons".
 
-    Milestone 3 adds the distribution groups, target weights and the 13 initial
-    pillars. Pillars are deactivated, never deleted, so post history stays intact.
+    Pillars are deactivated, never deleted, so post history stays intact.
     """
 
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True)
     description = models.TextField(blank=True)
+    group = models.ForeignKey(ContentGroup, on_delete=models.PROTECT, related_name="pillars")
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -40,6 +67,25 @@ class ContentPillar(TimeStampedModel):
 
     def __str__(self) -> str:
         return self.name
+
+    @property
+    def target_share(self):
+        """Equal share within its group, based on active pillars only."""
+        from decimal import Decimal
+
+        if not self.is_active:
+            return Decimal("0")
+        slugs = list(
+            self.group.pillars.filter(is_active=True)
+            .order_by("name")
+            .values_list("slug", flat=True)
+        )
+        if not slugs:
+            return Decimal("0")
+        cents = int(self.group.target_share * 100)
+        base, remainder = divmod(cents, len(slugs))
+        index = slugs.index(self.slug)
+        return Decimal(base + (1 if index < remainder else 0)) / 100
 
 
 class ContentTopic(TimeStampedModel):

@@ -1,12 +1,21 @@
 from django.contrib import admin
 
-from .models import ContentKnowledge, ContentPillar, ContentTopic, WritingExample
+from .models import ContentGroup, ContentKnowledge, ContentPillar, ContentTopic, WritingExample
+
+
+@admin.register(ContentGroup)
+class ContentGroupAdmin(admin.ModelAdmin):
+    list_display = ("name", "target_share", "is_active")
+    list_editable = ("target_share", "is_active")
+    prepopulated_fields = {"slug": ("name",)}
+    ordering = ("name",)
 
 
 @admin.register(ContentPillar)
 class ContentPillarAdmin(admin.ModelAdmin):
-    list_display = ("name", "slug", "is_active")
-    list_filter = ("is_active",)
+    list_display = ("name", "group", "target_share", "is_active")
+    list_filter = ("group", "is_active")
+    list_editable = ("group", "is_active")
     prepopulated_fields = {"slug": ("name",)}
 
 
