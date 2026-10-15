@@ -119,6 +119,12 @@ GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
 GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
 GEMINI_TIMEOUT_SECONDS = env.int("GEMINI_TIMEOUT_SECONDS", default=45)
 
+# Review quality scores are higher-is-better; risk scores are higher-is-worse.
+AI_REVIEW_QUALITY_MIN = env.int("AI_REVIEW_QUALITY_MIN", default=6)
+AI_REVIEW_AI_LIKE_MAX = env.int("AI_REVIEW_AI_LIKE_MAX", default=4)
+AI_REVIEW_PROMOTIONAL_MAX = env.int("AI_REVIEW_PROMOTIONAL_MAX", default=5)
+AI_REVIEW_REPETITION_MAX = env.int("AI_REVIEW_REPETITION_MAX", default=5)
+
 # Redis (Memurai on Windows) backs Celery and, later, task locks.
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 

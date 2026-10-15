@@ -40,6 +40,27 @@
         </div>
       </article>
 
+      {% with latest_review=reviews.0 %}
+        {% if latest_review %}
+          <section class="card mb-4" aria-labelledby="review-heading">
+            <div class="card-body">
+              <h2 id="review-heading" class="h5">AI quality review</h2>
+              <p class="mb-2">Overall score: <strong>{{ latest_review.overall_score }}/10</strong>
+                · {% if latest_review.approved_by_ai %}Meets configured AI thresholds{% else %}Needs owner attention{% endif %}
+              </p>
+              {% if latest_review.feedback %}<p>{{ latest_review.feedback }}</p>{% endif %}
+              {% if latest_review.has_unsupported_claims %}
+                <div class="alert alert-danger mb-2"><strong>Unsupported claims flagged:</strong>
+                  <ul class="mb-0">{% for claim in latest_review.unsupported_claims %}<li>{{ claim }}</li>{% endfor %}</ul>
+                </div>
+              {% endif %}
+              {% if latest_review.problems %}<h3 class="h6">Problems</h3><ul>{% for item in latest_review.problems %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
+              {% if latest_review.improvement_suggestions %}<h3 class="h6">Suggestions</h3><ul class="mb-0">{% for item in latest_review.improvement_suggestions %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+          </section>
+        {% endif %}
+      {% endwith %}
+
       {% if can_review %}
         <div class="d-flex flex-wrap align-items-center gap-2 mb-5">
           <form method="post" action="{% url 'posts:approve' post.pk %}">

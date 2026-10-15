@@ -5,7 +5,12 @@ import pytest
 from django.test import override_settings
 from django.urls import reverse
 
-from apps.ai.services import DraftGenerationError, GeneratedDraft, generate_linkedin_draft
+from apps.ai.services import (
+    DraftGenerationError,
+    GeneratedDraft,
+    ReviewResult,
+    generate_linkedin_draft,
+)
 from apps.content.models import ContentTopic
 from apps.posts.models import LinkedInPost, PostStatus, PostVersion, VersionKind
 
@@ -22,16 +27,42 @@ def generated_draft(*, content_topic_id: int | None = None) -> GeneratedDraft:
     )
 
 
+def passing_review() -> ReviewResult:
+    return ReviewResult(
+        scores={
+            "authenticity_score": 8,
+            "usefulness_score": 8,
+            "originality_score": 8,
+            "founder_voice_score": 8,
+            "clarity_score": 8,
+            "hook_quality_score": 8,
+            "overall_score": 8,
+            "ai_like_score": 2,
+            "promotional_score": 2,
+            "repetition_score": 2,
+        },
+        unsupported_claims=[],
+        feedback="Clear and useful.",
+        problems=[],
+        improvement_suggestions=[],
+        approved_by_ai=True,
+        model="review-model",
+    )
+
+
 @pytest.mark.django_db
 def test_owner_keyword_creates_manual_review_post_without_live_api(client, owner, pillar):
     client.force_login(owner)
     topic = ContentTopic.objects.create(
         title="Ship smaller releases", pillar=pillar, post_format="framework"
     )
-    with mock.patch(
-        "apps.posts.views.generate_linkedin_draft",
-        return_value=generated_draft(content_topic_id=topic.pk),
-    ) as call:
+    with (
+        mock.patch(
+            "apps.posts.views.generate_linkedin_draft",
+            return_value=generated_draft(content_topic_id=topic.pk),
+        ) as call,
+        mock.patch("apps.posts.views.review_linkedin_post", return_value=passing_review()),
+    ):
         response = client.post(reverse("posts:generate"), {"keyword": "small releases"})
 
     post = LinkedInPost.objects.get()
@@ -47,6 +78,8 @@ def test_owner_keyword_creates_manual_review_post_without_live_api(client, owner
     assert post.content_topic == topic
     assert post.original_ai_content == generated_draft().content
     assert post.generation_attempts == 1
+    assert post.ai_review_score == 8
+    assert post.reviews.get().approved_by_ai
     version = PostVersion.objects.get(post=post)
     assert version.kind == VersionKind.AI_GENERATED
     assert version.content == post.original_ai_content

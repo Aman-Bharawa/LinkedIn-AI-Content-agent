@@ -10,12 +10,26 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from apps.accounts.models import is_owner
-from apps.ai.services import DraftGenerationError, generate_linkedin_draft
-from apps.content.models import ContentPillar
+from apps.ai.services import (
+    DraftGenerationError,
+    SelectedTopic,
+    generate_linkedin_draft,
+    generate_linkedin_post,
+    review_linkedin_post,
+)
+from apps.content.models import ContentPillar, ContentTopic
 from apps.core.models import AuditAction, AuditEvent
 
 from .forms import GeneratePostForm, PostEditForm
-from .models import LinkedInPost, PostOrigin, PostStatus, PostVersion, VersionKind
+from .models import (
+    MAX_GENERATION_ATTEMPTS,
+    LinkedInPost,
+    PostOrigin,
+    PostReview,
+    PostStatus,
+    PostVersion,
+    VersionKind,
+)
 from .state import InvalidTransition, transition_post
 
 EDITABLE_STATUSES = (PostStatus.PENDING_APPROVAL, PostStatus.NEEDS_MANUAL_REVIEW)
@@ -50,40 +64,124 @@ def generate_post(request: HttpRequest) -> HttpResponse:
     )
     post = transition_post(post, PostStatus.GENERATING, actor=request.user)
 
-    try:
-        generated = generate_linkedin_draft(keyword)
-    except DraftGenerationError as exc:
-        transition_post(post, PostStatus.FAILED, actor=request.user, reason=str(exc))
-        messages.error(request, str(exc))
-        return redirect("core:home")
+    selected_topic: SelectedTopic | None = None
+    review_guidance = ""
+    passed_ai_review = False
+    for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
+        try:
+            if attempt == 1:
+                generated = generate_linkedin_draft(keyword)
+                if generated.content_topic_id is None:
+                    raise DraftGenerationError("The generated draft has no saved topic record.")
+                selected_row = ContentTopic.objects.select_related("pillar").get(
+                    pk=generated.content_topic_id
+                )
+                selected_topic = SelectedTopic(
+                    title=selected_row.title,
+                    pillar_slug=selected_row.pillar.slug,
+                    angle=selected_row.angle,
+                    post_format=selected_row.post_format,
+                    topic_id=selected_row.pk,
+                    model=generated.model,
+                )
+            else:
+                if selected_topic is None:
+                    raise DraftGenerationError(
+                        "The selected topic is unavailable for regeneration."
+                    )
+                generated = generate_linkedin_post(selected_topic, review_guidance=review_guidance)
+        except (DraftGenerationError, ContentTopic.DoesNotExist) as exc:
+            transition_post(post, PostStatus.FAILED, actor=request.user, reason=str(exc))
+            messages.error(request, str(exc) or "The selected topic is no longer available.")
+            return redirect("core:home")
 
-    with transaction.atomic():
-        post = LinkedInPost.objects.select_for_update().get(pk=post.pk)
-        post.topic = generated.topic
-        post.pillar = ContentPillar.objects.get(slug=generated.pillar_slug)
-        post.content_topic_id = generated.content_topic_id
-        post.hook = generated.hook
-        post.content = generated.content
-        post.hashtags = generated.hashtags
-        post.original_ai_content = generated.content
-        post.ai_model = generated.model
-        post.prompt_version = generated.prompt_version
-        post.generation_attempts = 1
-        post.save()
-        PostVersion.objects.create(
-            post=post,
-            version_number=1,
-            kind=VersionKind.AI_GENERATED,
-            topic=post.topic,
-            hook=post.hook,
-            content=post.content,
-            hashtags=post.hashtags,
-            ai_model=post.ai_model,
-            prompt_version=post.prompt_version,
+        version_kind = VersionKind.AI_GENERATED if attempt == 1 else VersionKind.AI_REGENERATED
+        with transaction.atomic():
+            post = LinkedInPost.objects.select_for_update().get(pk=post.pk)
+            post.topic = generated.topic
+            post.pillar = ContentPillar.objects.get(slug=generated.pillar_slug)
+            post.content_topic_id = generated.content_topic_id
+            post.hook = generated.hook
+            post.content = generated.content
+            post.hashtags = generated.hashtags
+            if attempt == 1:
+                post.original_ai_content = generated.content
+            post.ai_model = generated.model
+            post.prompt_version = generated.prompt_version
+            post.generation_attempts = attempt
+            post.save()
+            PostVersion.objects.create(
+                post=post,
+                version_number=attempt,
+                kind=version_kind,
+                topic=post.topic,
+                hook=post.hook,
+                content=post.content,
+                hashtags=post.hashtags,
+                ai_model=post.ai_model,
+                prompt_version=post.prompt_version,
+            )
+        post = transition_post(post, PostStatus.REVIEWING, actor=request.user)
+        try:
+            review = review_linkedin_post(
+                topic=generated.topic,
+                pillar=generated.pillar_slug,
+                hook=generated.hook,
+                content=generated.content,
+                hashtags=generated.hashtags,
+            )
+        except DraftGenerationError as exc:
+            transition_post(post, PostStatus.FAILED, actor=request.user, reason=str(exc))
+            messages.error(request, str(exc))
+            return redirect("posts:detail", post_id=post.pk)
+
+        with transaction.atomic():
+            post = LinkedInPost.objects.select_for_update().get(pk=post.pk)
+            post.ai_review_score = review.scores["overall_score"]
+            post.ai_review_notes = review.feedback
+            post.save()
+            PostReview.objects.create(
+                post=post,
+                attempt_number=attempt,
+                **review.scores,
+                has_unsupported_claims=bool(review.unsupported_claims),
+                unsupported_claims=review.unsupported_claims,
+                approved_by_ai=review.approved_by_ai,
+                feedback=review.feedback,
+                problems=review.problems,
+                improvement_suggestions=review.improvement_suggestions,
+                reviewer_model=review.model,
+                prompt_version=review.prompt_version,
+            )
+        if review.approved_by_ai:
+            passed_ai_review = True
+            post = transition_post(post, PostStatus.NEEDS_MANUAL_REVIEW, actor=request.user)
+            break
+        if attempt == MAX_GENERATION_ATTEMPTS:
+            summary = review.feedback or "; ".join(review.problems) or "Quality thresholds not met."
+            post = transition_post(
+                post,
+                PostStatus.NEEDS_MANUAL_REVIEW,
+                actor=request.user,
+                reason=summary,
+            )
+            break
+        review_guidance = "\n".join(
+            [review.feedback, *review.problems, *review.improvement_suggestions]
         )
-        post = transition_post(post, PostStatus.NEEDS_MANUAL_REVIEW, actor=request.user)
+        post = transition_post(
+            post,
+            PostStatus.GENERATING,
+            actor=request.user,
+            reason=f"AI review failed on attempt {attempt}; regenerating within the attempt limit.",
+        )
 
-    messages.success(request, "Draft generated. Review every claim before approving it.")
+    messages.success(
+        request,
+        "AI review passed; owner review is still required."
+        if passed_ai_review
+        else "Draft needs your manual review. See the saved AI feedback before approving.",
+    )
     return redirect("posts:detail", post_id=post.pk)
 
 
@@ -148,6 +246,7 @@ def post_detail(request: HttpRequest, post_id: int) -> HttpResponse:
         {
             "post": post,
             "versions": post.versions.all(),
+            "reviews": post.reviews.all(),
             "can_edit": post.status in EDITABLE_STATUSES,
             "can_review": post.status in QUEUE_STATUSES,
         },

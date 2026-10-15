@@ -107,6 +107,10 @@ This demo does not publish to LinkedIn. Before using live generation, set `GEMIN
 the ignored `.env` file. `GEMINI_MODEL` defaults to `gemini-3.8-flash`. Never paste an API key
 into chat or commit it.
 
+Each draft receives a structured quality review. Low quality scores, excessive AI-like,
+promotional, or repetitive writing, or any unsupported claim trigger at most three generation
+attempts. The owner still reviews and approves every draft; AI review never approves or publishes.
+
 Google AI Studio offers a free Gemini API tier for eligible models, subject to changing quotas.
 Google may use content submitted through the unpaid tier to improve its products. Do not include
 confidential or sensitive personal information in generation prompts; check the current [Gemini

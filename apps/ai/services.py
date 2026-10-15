@@ -22,6 +22,7 @@ from apps.posts.models import LinkedInPost, PostStatus, normalize_hashtags
 
 PROMPT_VERSION = "linkedin-post-v1"
 TOPIC_PROMPT_VERSION = "linkedin-topic-v1"
+REVIEW_PROMPT_VERSION = "linkedin-review-v1"
 MAX_TOPIC_ATTEMPTS = 3
 RECENT_TOPIC_DAYS = 90
 
@@ -53,6 +54,18 @@ class SelectedTopic:
     prompt_version: str = TOPIC_PROMPT_VERSION
 
 
+@dataclass(frozen=True)
+class ReviewResult:
+    scores: dict[str, int]
+    unsupported_claims: list[str]
+    feedback: str
+    problems: list[str]
+    improvement_suggestions: list[str]
+    approved_by_ai: bool
+    model: str
+    prompt_version: str = REVIEW_PROMPT_VERSION
+
+
 def _post_schema() -> dict[str, Any]:
     return {
         "type": "object",
@@ -81,6 +94,39 @@ def _topic_schema(pillar_slugs: list[str]) -> dict[str, Any]:
             "format": {"type": "string", "enum": list(ContentFormat.values)},
         },
         "required": ["title", "pillar_slug", "angle", "format"],
+    }
+
+
+def _review_schema() -> dict[str, Any]:
+    scores = (
+        "authenticity_score",
+        "usefulness_score",
+        "originality_score",
+        "founder_voice_score",
+        "clarity_score",
+        "hook_quality_score",
+        "overall_score",
+        "ai_like_score",
+        "promotional_score",
+        "repetition_score",
+    )
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            **{name: {"type": "integer", "minimum": 0, "maximum": 10} for name in scores},
+            "unsupported_claims": {"type": "array", "items": {"type": "string"}},
+            "feedback": {"type": "string"},
+            "problems": {"type": "array", "items": {"type": "string"}},
+            "improvement_suggestions": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": [
+            *scores,
+            "unsupported_claims",
+            "feedback",
+            "problems",
+            "improvement_suggestions",
+        ],
     }
 
 
@@ -259,7 +305,118 @@ def _recent_post_context() -> str:
     )
 
 
-def generate_linkedin_post(selected_topic: SelectedTopic) -> GeneratedDraft:
+def review_linkedin_post(
+    *, topic: str, pillar: str, hook: str, content: str, hashtags: list[str]
+) -> ReviewResult:
+    """Score draft quality and risk; unsupported claims always block the AI pass result."""
+    api_key = settings.GEMINI_API_KEY
+    model = settings.GEMINI_MODEL
+    if not api_key or not model:
+        raise DraftGenerationError("AI generation is not configured. Set GEMINI_API_KEY in .env.")
+    system_prompt = """You are a strict LinkedIn editorial reviewer. Assess only the supplied draft.
+Quality scores (authenticity, usefulness, originality, founder voice, clarity, hook quality,
+overall) are higher-is-better from 0 to 10. Risk scores (AI-like writing, promotional tone,
+repetition) are higher-is-worse from 0 to 10. Mark claims unsupported if the supplied verified
+knowledge does not support them. Do not infer or invent facts. Give concise actionable feedback.
+Return only the requested JSON fields; do not make the final approval decision."""
+    prompt = f"""Review this draft.
+Topic: {topic}
+Pillar: {pillar}
+Hook: {hook}
+Body: {content}
+Hashtags: {json.dumps(hashtags)}
+
+Verified knowledge and writing rules:
+{_knowledge_prompt()}
+
+Recent posts for repetition comparison:
+{_recent_post_context()}
+
+Score all criteria and return any unsupported factual claims verbatim or by clear summary."""
+    try:
+        client = genai.Client(
+            api_key=api_key, http_options={"timeout": settings.GEMINI_TIMEOUT_SECONDS * 1000}
+        )
+        response = client.interactions.create(
+            model=model,
+            input=f"{system_prompt}\n\n{prompt}",
+            response_format={
+                "type": "text",
+                "mime_type": "application/json",
+                "schema": _review_schema(),
+            },
+            store=False,
+        )
+    except errors.APIError as exc:
+        raise DraftGenerationError(
+            "The AI provider could not review this draft. Check the API configuration and retry."
+        ) from exc
+    try:
+        data = json.loads(response.output_text)
+        score_fields = (
+            "authenticity_score",
+            "usefulness_score",
+            "originality_score",
+            "founder_voice_score",
+            "clarity_score",
+            "hook_quality_score",
+            "overall_score",
+            "ai_like_score",
+            "promotional_score",
+            "repetition_score",
+        )
+        scores: dict[str, int] = {}
+        for field in score_fields:
+            score = data[field]
+            if isinstance(score, bool) or not isinstance(score, int) or not 0 <= score <= 10:
+                raise ValueError(f"Invalid {field}")
+            scores[field] = score
+        unsupported_claims = data["unsupported_claims"]
+        problems = data["problems"]
+        suggestions = data["improvement_suggestions"]
+        feedback = data["feedback"]
+        if not all(
+            isinstance(items, list) and all(isinstance(item, str) for item in items)
+            for items in (unsupported_claims, problems, suggestions)
+        ):
+            raise ValueError("Review lists must contain strings")
+        if not isinstance(feedback, str):
+            raise ValueError("Feedback must be text")
+    except (AttributeError, KeyError, TypeError, ValueError) as exc:
+        raise DraftGenerationError("The AI review response was incomplete. Please retry.") from exc
+
+    approved = (
+        not unsupported_claims
+        and all(
+            scores[field] >= settings.AI_REVIEW_QUALITY_MIN
+            for field in (
+                "authenticity_score",
+                "usefulness_score",
+                "originality_score",
+                "founder_voice_score",
+                "clarity_score",
+                "hook_quality_score",
+                "overall_score",
+            )
+        )
+        and scores["ai_like_score"] <= settings.AI_REVIEW_AI_LIKE_MAX
+        and scores["promotional_score"] <= settings.AI_REVIEW_PROMOTIONAL_MAX
+        and scores["repetition_score"] <= settings.AI_REVIEW_REPETITION_MAX
+    )
+    return ReviewResult(
+        scores=scores,
+        unsupported_claims=unsupported_claims,
+        feedback=feedback,
+        problems=problems,
+        improvement_suggestions=suggestions,
+        approved_by_ai=approved,
+        model=model,
+    )
+
+
+def generate_linkedin_post(
+    selected_topic: SelectedTopic, *, review_guidance: str = ""
+) -> GeneratedDraft:
     """Generate post copy for a saved topic; the model cannot replace its topic or pillar."""
     api_key = settings.GEMINI_API_KEY
     model = settings.GEMINI_MODEL
@@ -292,6 +449,10 @@ Recent posts for repetition avoidance (do not copy them):
 Return a one-sentence hook, body that does not repeat the hook, and up to 5 relevant hashtags
 without # characters. Do not repeat the topic as a headline. Do not include unsupported claims;
 if the angle would require one, frame it as a general lesson or principle instead."""
+    if review_guidance.strip():
+        user_prompt += (
+            f"\n\nAddress these reviewer notes in this regeneration:\n{review_guidance.strip()}"
+        )
 
     try:
         client = genai.Client(
