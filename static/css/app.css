@@ -51,12 +51,34 @@ body.app-body {
 .dashboard-shell { max-width: 900px; margin: 0 auto; }
 
 .hero-panel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  overflow: hidden;
+  min-height: 220px;
   padding: 27px 30px;
   border: 1px solid #403a55;
   border-left: 3px solid var(--accent);
   border-radius: 10px;
   background: linear-gradient(110deg,#25232d 0%,#202125 58%);
 }
+.hero-copy { position: relative; z-index: 1; max-width: 570px; }
+.hero-art { position: relative; flex: 0 0 230px; width: 230px; height: 180px; margin-right: 12px; }
+.hero-orbit { position: absolute; top: 50%; left: 50%; border: 1px solid rgba(170,140,255,.24); border-radius: 50%; transform: translate(-50%,-50%) rotate(-18deg); }
+.orbit-one { width: 215px; height: 125px; }
+.orbit-two { width: 160px; height: 160px; border-color: rgba(120,210,223,.2); }
+.hero-note { position: absolute; display: flex; flex-direction: column; justify-content: center; border: 1px solid #51505e; border-radius: 10px; box-shadow: 0 12px 25px rgba(0,0,0,.27); }
+.note-back { top: 23px; right: 2px; width: 145px; height: 48px; padding-left: 14px; color: #e4cdfd; background: #3c3047; font-size: .75rem; font-weight: 650; transform: rotate(7deg); }
+.note-front { top: 60px; right: 40px; width: 154px; height: 116px; padding: 14px; background: #28282f; transform: rotate(-5deg); }
+.note-mark { display: grid; place-items: center; width: 21px; height: 21px; margin-bottom: 10px; border-radius: 5px; color: #fff; background: #397fc2; font-size: .68rem; font-weight: 750; }
+.note-lines { width: 100%; height: 4px; margin-bottom: 6px; border-radius: 4px; background: #9b83d7; }
+.note-lines.short { width: 72%; background: #69bfc2; }
+.note-lines.shorter { width: 48%; background: #d6ae62; }
+.note-tag { align-self: flex-start; margin-top: 5px; padding: 3px 6px; border-radius: 4px; color: #9ee0c1; background: #294237; font-size: .48rem; font-weight: 750; letter-spacing: .06em; }
+.hero-glint { position: absolute; color: #f0c36c; }
+.glint-one { top: 16px; left: 12px; font-size: 1.1rem; }
+.glint-two { right: 5px; bottom: 12px; color: #78d2df; font-size: 1.5rem; }
 .eyebrow { color: var(--quiet); font-size: .65rem; font-weight: 700; letter-spacing: .12em; }
 .hero-copy h1 { margin: 8px 0 7px; color: var(--ink); font-size: 2rem; font-weight: 650; letter-spacing: -.04em; }
 .hero-copy>p:not(.eyebrow) { margin-bottom: 12px; color: var(--muted); font-size: .88rem; }
@@ -178,6 +200,7 @@ details summary { color: #c8c5d4; cursor: pointer; }
   .hero-panel { padding: 21px; }
   .hero-copy h1 { font-size: 1.7rem; }
   .hero-copy>p:not(.eyebrow) { font-size: .82rem; }
+  .hero-art { position: absolute; right: -122px; bottom: -91px; margin: 0; opacity: .55; transform: scale(.78); }
   .stats-grid { grid-template-columns: 1fr; gap: 7px; }
   .stat-card { min-height: 48px; padding: 10px 12px; }
   .connection-strip { gap: 9px; padding: 10px; }
