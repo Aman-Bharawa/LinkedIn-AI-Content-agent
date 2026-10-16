@@ -78,6 +78,11 @@ def home(request: HttpRequest) -> HttpResponse:
         {
             "form": GeneratePostForm(),
             "page_obj": page_obj,
+            "draft_count": LinkedInPost.objects.count(),
+            "review_count": LinkedInPost.objects.filter(
+                status__in=[PostStatus.PENDING_APPROVAL, PostStatus.NEEDS_MANUAL_REVIEW]
+            ).count(),
+            "published_count": LinkedInPost.objects.filter(status=PostStatus.PUBLISHED).count(),
             "status_choices": [("all", "All statuses"), *PostStatus.choices],
             "selected_status": selected_status,
             "search_term": search_term,

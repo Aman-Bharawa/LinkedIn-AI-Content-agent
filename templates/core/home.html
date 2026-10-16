@@ -3,28 +3,43 @@
 {% block title %}Drafts · LinkedIn AI Content Agent{% endblock %}
 
 {% block content %}
-  <div class="row justify-content-center">
-    <div class="col-xl-9">
-      <div class="mb-4">
-        <p class="text-uppercase small fw-semibold text-primary mb-1">Owner workspace</p>
-        <h1 class="display-6 fw-semibold">Turn an idea into a draft.</h1>
-        <p class="lead text-secondary mb-0">Give the agent a topic. You stay in control of every post.</p>
-      </div>
+  <div class="dashboard-shell">
+      <section class="hero-panel mb-4" aria-label="Workspace introduction">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="sparkle-dot" aria-hidden="true">✦</span> YOUR LINKEDIN CONTENT STUDIO</p>
+          <h1>Good ideas deserve<br><span>a great first draft.</span></h1>
+          <p>Turn a thought into a polished post. Review every draft and decide what gets published.</p>
+          <a class="hero-link" href="#create-draft">Create your next draft <span aria-hidden="true">↓</span></a>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+          <div class="hero-note note-back">Your next big idea</div>
+          <div class="hero-note note-front"><span class="note-star">✦</span><span class="note-lines"></span><span class="note-lines short"></span><span class="note-chip">READY TO WRITE</span></div>
+          <span class="hero-spark spark-one">✦</span><span class="hero-spark spark-two">✧</span>
+        </div>
+      </section>
 
-      <section class="card shadow-sm mb-4" aria-label="LinkedIn connection">
-        <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
-          <div>
-            <h2 class="h5 mb-1">LinkedIn account</h2>
+      <section class="stats-grid mb-4" aria-label="Draft overview">
+        <article class="stat-card"><span class="stat-icon icon-violet" aria-hidden="true">✎</span><span class="stat-label">ALL DRAFTS</span><strong>{{ draft_count }}</strong><span class="stat-caption">Ideas in your workspace</span></article>
+        <article class="stat-card"><span class="stat-icon icon-amber" aria-hidden="true">◷</span><span class="stat-label">NEEDS YOUR REVIEW</span><strong>{{ review_count }}</strong><span class="stat-caption">Your decision comes first</span></article>
+        <article class="stat-card"><span class="stat-icon icon-green" aria-hidden="true">↗</span><span class="stat-label">PUBLISHED</span><strong>{{ published_count }}</strong><span class="stat-caption">Posts shared on LinkedIn</span></article>
+      </section>
+
+      <section class="connection-strip mb-4" aria-label="LinkedIn connection">
+        <span class="connection-icon" aria-hidden="true">in</span>
+        <div class="connection-copy">
+            <span class="connection-heading">LinkedIn account</span>
             {% if linkedin_account %}
-              <p class="text-secondary mb-0">Connected as {{ linkedin_account.display_name|default:"LinkedIn member" }} · expires {{ linkedin_account.access_token_expires_at|date:"M j, Y" }}</p>
+              <p class="mb-0"><span class="connected-dot" aria-hidden="true"></span> Connected as <strong>{{ linkedin_account.display_name|default:"LinkedIn member" }}</strong><span class="connection-expiry"> · token expires {{ linkedin_account.access_token_expires_at|date:"M j, Y" }}</span></p>
             {% else %}
-              <p class="text-secondary mb-0">Connect your member account before publishing an approved post.</p>
+              <p class="mb-0">Connect your account to publish approved posts.</p>
             {% endif %}
-          </div>
+        </div>
+        <div class="connection-action">
           {% if linkedin_account %}
-            <form method="post" action="{% url 'linkedin:disconnect' %}">{% csrf_token %}<button class="btn btn-outline-secondary" type="submit">Disconnect</button></form>
+            <form method="post" action="{% url 'linkedin:disconnect' %}">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary" type="submit">Disconnect</button></form>
           {% else %}
-            <a class="btn btn-outline-primary" href="{% url 'linkedin:connect' %}">Connect LinkedIn</a>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'linkedin:connect' %}">Connect LinkedIn <span aria-hidden="true">→</span></a>
           {% endif %}
         </div>
       </section>
@@ -41,20 +56,24 @@
         </div>
       {% endif %}
 
-      <section class="card shadow-sm mb-5" aria-labelledby="generate-heading">
-        <div class="card-body p-4">
-          <h2 id="generate-heading" class="h4">Create a LinkedIn draft</h2>
-          <p class="text-secondary">The agent uses your verified knowledge and writing guidance, then adds the draft to your review queue.</p>
+      <section class="composer-card mb-5" id="create-draft" aria-labelledby="generate-heading">
+        <div class="composer-heading">
+          <div><p class="eyebrow text-primary mb-2">START WITH A THOUGHT</p><h2 id="generate-heading">Let’s make something worth reading.</h2>
+          <p class="text-secondary mb-0">Your AI co-writer shapes your idea into a draft, grounded in your knowledge and style.</p></div>
+          <div class="composer-decoration" aria-hidden="true"><span>✦</span></div>
+        </div>
+        <div class="composer-body">
           <form method="post" action="{% url 'posts:generate' %}">
             {% csrf_token %}
             <label for="id_keyword" class="form-label fw-medium">{{ form.keyword.label }}</label>
             {{ form.keyword }}
+            <div class="input-meta"><span>Start with a theme, question, or rough thought.</span><span id="topic-character-count">0 / 255</span></div>
             {% if form.keyword.errors %}<div class="text-danger small mt-1">{{ form.keyword.errors|join:", " }}</div>{% endif %}
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-3">
-              <span class="small text-secondary">AI drafts are never published automatically.</span>
+              <span class="safety-note"><span aria-hidden="true">✓</span> You review every draft before anything is published.</span>
               <div class="d-flex flex-wrap gap-2">
-                <button type="button" class="btn btn-outline-primary btn-lg" id="suggest-topic">Suggest a topic</button>
-                <button type="submit" class="btn btn-primary btn-lg">Generate draft</button>
+                <button type="button" class="btn btn-suggest btn-lg" id="suggest-topic"><span aria-hidden="true">✧</span> Suggest a topic</button>
+                <button type="submit" class="btn btn-generate btn-lg" id="generate-draft" disabled>Generate draft <span aria-hidden="true">→</span></button>
               </div>
             </div>
             <p class="small text-secondary mt-2 mb-0" id="topic-suggestion-status" aria-live="polite"></p>
@@ -62,35 +81,30 @@
         </div>
       </section>
 
-      <section aria-labelledby="posts-heading">
-        <div class="d-flex align-items-baseline justify-content-between mb-3">
-          <h2 id="posts-heading" class="h3 mb-0">All drafts</h2>
-          <span class="badge rounded-pill text-bg-primary">{{ page_obj.paginator.count }} total</span>
+      <section class="drafts-section" aria-labelledby="posts-heading">
+        <div class="drafts-heading mb-3">
+          <div><p class="eyebrow text-primary mb-1">YOUR CONTENT LIBRARY</p><h2 id="posts-heading" class="mb-0">Drafts &amp; posts</h2></div>
+          <span class="draft-count">{{ page_obj.paginator.count }} <span>total</span></span>
         </div>
-        <form method="get" action="{% url 'core:posts-dashboard' %}" class="row g-2 mb-3">
-          <div class="col-md-5"><label class="visually-hidden" for="status-filter">Filter by status</label>
-            <select class="form-select" id="status-filter" name="status">
+        <form method="get" action="{% url 'core:posts-dashboard' %}" class="draft-filters mb-3">
+            <label class="search-box" for="post-search"><span aria-hidden="true">⌕</span><input id="post-search" name="q" value="{{ search_term }}" placeholder="Search your drafts"></label>
+            <label class="filter-box" for="status-filter"><span class="visually-hidden">Filter by status</span><select id="status-filter" name="status">
               {% for value, label in status_choices %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-md-5"><label class="visually-hidden" for="post-search">Search posts</label>
-            <input class="form-control" id="post-search" name="q" value="{{ search_term }}" placeholder="Search topics">
-          </div>
-          <div class="col-md-2"><button class="btn btn-outline-primary w-100" type="submit">Filter</button></div>
+            </select></label>
+            <button class="btn btn-filter" type="submit">Filter drafts <span aria-hidden="true">→</span></button>
         </form>
         {% if page_obj.object_list %}
-          <div class="table-responsive shadow-sm rounded">
-            <table class="table table-hover align-middle bg-white mb-0">
-              <thead><tr><th scope="col">Topic</th><th scope="col">Pillar</th><th scope="col">Origin</th><th scope="col">Status</th><th scope="col">AI score</th><th scope="col">Review notes</th></tr></thead>
+          <div class="table-responsive draft-table-wrap">
+            <table class="table align-middle mb-0 draft-table">
+              <thead><tr><th scope="col">POST</th><th scope="col">PILLAR</th><th scope="col">STATUS</th><th scope="col">AI SCORE</th><th scope="col"></th></tr></thead>
               <tbody>
                 {% for post in page_obj %}
                   <tr>
-                    <td><a href="{% url 'posts:detail' post.pk %}">{{ post.topic|default:"Untitled draft" }}</a><div class="small text-secondary">{{ post.created_at|date:"M j, Y, g:i a" }}</div></td>
-                    <td>{{ post.pillar.name|default:"—" }}</td>
-                    <td><span class="badge text-bg-light border">{{ post.get_origin_display }}</span></td>
-                    <td><span class="badge {% if post.status == 'approved' or post.status == 'published' %}text-bg-success{% elif post.status == 'rejected' or post.status == 'failed' %}text-bg-secondary{% elif post.status == 'needs_manual_review' or post.status == 'pending_approval' %}text-bg-warning{% else %}text-bg-light border{% endif %}">{{ post.get_status_display }}</span></td>
-                    <td>{% if post.ai_review_score or post.ai_review_score == 0 %}{{ post.ai_review_score }}/10{% else %}—{% endif %}</td>
-                    <td class="small">{% with latest_review=post.reviews.0 %}{% if latest_review %}{{ latest_review.feedback|truncatechars:100 }}{% if latest_review.has_unsupported_claims %}<span class="text-danger d-block">Unsupported claim flagged</span>{% endif %}{% else %}—{% endif %}{% endwith %}</td>
+                    <td><a class="post-title-link" href="{% url 'posts:detail' post.pk %}">{{ post.topic|default:"Untitled draft" }}</a><div class="post-meta">{{ post.get_origin_display }} · {{ post.created_at|date:"M j, Y, g:i a" }}</div></td>
+                    <td><span class="pillar-label">{{ post.pillar.name|default:"Unassigned" }}</span></td>
+                    <td><span class="status-pill status-{{ post.status }}"><span aria-hidden="true"></span>{{ post.get_status_display }}</span></td>
+                    <td>{% if post.ai_review_score or post.ai_review_score == 0 %}<span class="score-label">{{ post.ai_review_score }}<small>/10</small></span>{% else %}<span class="muted-dash">—</span>{% endif %}</td>
+                    <td><a class="row-open" href="{% url 'posts:detail' post.pk %}" aria-label="Open {{ post.topic|default:'draft' }}">↗</a></td>
                   </tr>
                 {% endfor %}
               </tbody>
@@ -107,7 +121,6 @@
           <div class="border rounded-3 bg-white p-4 text-center text-secondary">No drafts match these filters.</div>
         {% endif %}
       </section>
-    </div>
   </div>
 {% endblock %}
 
@@ -116,14 +129,33 @@
     (() => {
       const input = document.getElementById("id_keyword");
       const button = document.getElementById("suggest-topic");
+      const generateButton = document.getElementById("generate-draft");
+      const characterCount = document.getElementById("topic-character-count");
       const status = document.getElementById("topic-suggestion-status");
+      const filter = document.getElementById("status-filter");
       const csrfToken = document.querySelector("input[name=csrfmiddlewaretoken]")?.value;
-      if (!input || !button || !status || !csrfToken) return;
+      if (!input || !button || !generateButton || !characterCount || !status || !csrfToken) return;
+
+      const updateTopicState = () => {
+        const length = input.value.trim().length;
+        characterCount.textContent = `${input.value.length} / 255`;
+        generateButton.disabled = length < 2;
+        characterCount.classList.toggle("text-danger", input.value.length > 255);
+      };
+      input.addEventListener("input", updateTopicState);
+      updateTopicState();
+
+      input.form.addEventListener("submit", () => {
+        generateButton.disabled = true;
+        generateButton.innerHTML = '<span class="button-spinner" aria-hidden="true"></span> Creating your draft…';
+      });
+
+      filter?.addEventListener("change", () => filter.form.requestSubmit());
 
       button.addEventListener("click", async () => {
         button.disabled = true;
-        button.textContent = "Asking Gemini…";
-        status.textContent = "Generating a fresh topic suggestion…";
+        button.innerHTML = '<span class="suggest-spinner" aria-hidden="true"></span> Asking Gemini…';
+        status.innerHTML = '<span class="suggest-spinner" aria-hidden="true"></span> Coming up with a fresh idea…';
         try {
           const response = await fetch("{% url 'core:suggest-topic' %}", {
             method: "POST",
@@ -144,6 +176,7 @@
 
           input.value = result.topic;
           input.dispatchEvent(new Event("input", { bubbles: true }));
+          updateTopicState();
           input.focus();
           input.setSelectionRange(input.value.length, input.value.length);
           status.textContent =
@@ -152,7 +185,7 @@
           status.textContent = error.message || "Could not get a topic suggestion. Please try again.";
         } finally {
           button.disabled = false;
-          button.textContent = "Suggest a topic";
+          button.innerHTML = '<span aria-hidden="true">✧</span> Suggest a topic';
         }
       });
     })();
