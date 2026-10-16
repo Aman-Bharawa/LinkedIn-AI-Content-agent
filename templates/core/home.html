@@ -6,23 +6,17 @@
   <div class="dashboard-shell">
       <section class="hero-panel mb-4" aria-label="Workspace introduction">
         <div class="hero-copy">
-          <p class="eyebrow"><span class="sparkle-dot" aria-hidden="true">✦</span> YOUR LINKEDIN CONTENT STUDIO</p>
-          <h1>Good ideas deserve<br><span>a great first draft.</span></h1>
-          <p>Turn a thought into a polished post. Review every draft and decide what gets published.</p>
-          <a class="hero-link" href="#create-draft">Create your next draft <span aria-hidden="true">↓</span></a>
-        </div>
-        <div class="hero-art" aria-hidden="true">
-          <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
-          <div class="hero-note note-back">Your next big idea</div>
-          <div class="hero-note note-front"><span class="note-star">✦</span><span class="note-lines"></span><span class="note-lines short"></span><span class="note-chip">READY TO WRITE</span></div>
-          <span class="hero-spark spark-one">✦</span><span class="hero-spark spark-two">✧</span>
+          <p class="eyebrow">WORKSPACE</p>
+          <h1>Drafts</h1>
+          <p>Turn a topic into a LinkedIn post. Review it before publishing.</p>
+          <a class="hero-link" href="#create-draft">New draft <span aria-hidden="true">↓</span></a>
         </div>
       </section>
 
       <section class="stats-grid mb-4" aria-label="Draft overview">
-        <article class="stat-card"><span class="stat-icon icon-violet" aria-hidden="true">✎</span><span class="stat-label">ALL DRAFTS</span><strong>{{ draft_count }}</strong><span class="stat-caption">Ideas in your workspace</span></article>
-        <article class="stat-card"><span class="stat-icon icon-amber" aria-hidden="true">◷</span><span class="stat-label">NEEDS YOUR REVIEW</span><strong>{{ review_count }}</strong><span class="stat-caption">Your decision comes first</span></article>
-        <article class="stat-card"><span class="stat-icon icon-green" aria-hidden="true">↗</span><span class="stat-label">PUBLISHED</span><strong>{{ published_count }}</strong><span class="stat-caption">Posts shared on LinkedIn</span></article>
+        <article class="stat-card"><span class="stat-label">ALL DRAFTS</span><strong>{{ draft_count }}</strong></article>
+        <article class="stat-card"><span class="stat-label">NEEDS REVIEW</span><strong>{{ review_count }}</strong></article>
+        <article class="stat-card"><span class="stat-label">PUBLISHED</span><strong>{{ published_count }}</strong></article>
       </section>
 
       <section class="connection-strip mb-4" aria-label="LinkedIn connection">
@@ -58,9 +52,8 @@
 
       <section class="composer-card mb-5" id="create-draft" aria-labelledby="generate-heading">
         <div class="composer-heading">
-          <div><p class="eyebrow text-primary mb-2">START WITH A THOUGHT</p><h2 id="generate-heading">Let’s make something worth reading.</h2>
-          <p class="text-secondary mb-0">Your AI co-writer shapes your idea into a draft, grounded in your knowledge and style.</p></div>
-          <div class="composer-decoration" aria-hidden="true"><span>✦</span></div>
+          <div><p class="eyebrow text-primary mb-2">CREATE</p><h2 id="generate-heading">New draft</h2>
+          <p class="text-secondary mb-0">Enter a topic or ask Gemini for an idea.</p></div>
         </div>
         <div class="composer-body">
           <form method="post" action="{% url 'posts:generate' %}">
@@ -70,10 +63,10 @@
             <div class="input-meta"><span>Start with a theme, question, or rough thought.</span><span id="topic-character-count">0 / 255</span></div>
             {% if form.keyword.errors %}<div class="text-danger small mt-1">{{ form.keyword.errors|join:", " }}</div>{% endif %}
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-3">
-              <span class="safety-note"><span aria-hidden="true">✓</span> You review every draft before anything is published.</span>
+              <span class="safety-note">Drafts need your approval before publishing.</span>
               <div class="d-flex flex-wrap gap-2">
-                <button type="button" class="btn btn-suggest btn-lg" id="suggest-topic"><span aria-hidden="true">✧</span> Suggest a topic</button>
-                <button type="submit" class="btn btn-generate btn-lg" id="generate-draft" disabled>Generate draft <span aria-hidden="true">→</span></button>
+                <button type="button" class="btn btn-suggest btn-lg" id="suggest-topic">Suggest a topic</button>
+                <button type="submit" class="btn btn-generate btn-lg" id="generate-draft" disabled>Generate draft</button>
               </div>
             </div>
             <p class="small text-secondary mt-2 mb-0" id="topic-suggestion-status" aria-live="polite"></p>
@@ -83,7 +76,7 @@
 
       <section class="drafts-section" aria-labelledby="posts-heading">
         <div class="drafts-heading mb-3">
-          <div><p class="eyebrow text-primary mb-1">YOUR CONTENT LIBRARY</p><h2 id="posts-heading" class="mb-0">Drafts &amp; posts</h2></div>
+          <div><p class="eyebrow text-primary mb-1">HISTORY</p><h2 id="posts-heading" class="mb-0">Drafts &amp; posts</h2></div>
           <span class="draft-count">{{ page_obj.paginator.count }} <span>total</span></span>
         </div>
         <form method="get" action="{% url 'core:posts-dashboard' %}" class="draft-filters mb-3">
@@ -91,7 +84,7 @@
             <label class="filter-box" for="status-filter"><span class="visually-hidden">Filter by status</span><select id="status-filter" name="status">
               {% for value, label in status_choices %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
             </select></label>
-            <button class="btn btn-filter" type="submit">Filter drafts <span aria-hidden="true">→</span></button>
+            <button class="btn btn-filter" type="submit">Filter</button>
         </form>
         {% if page_obj.object_list %}
           <div class="table-responsive draft-table-wrap">
@@ -104,7 +97,7 @@
                     <td><span class="pillar-label">{{ post.pillar.name|default:"Unassigned" }}</span></td>
                     <td><span class="status-pill status-{{ post.status }}"><span aria-hidden="true"></span>{{ post.get_status_display }}</span></td>
                     <td>{% if post.ai_review_score or post.ai_review_score == 0 %}<span class="score-label">{{ post.ai_review_score }}<small>/10</small></span>{% else %}<span class="muted-dash">—</span>{% endif %}</td>
-                    <td><a class="row-open" href="{% url 'posts:detail' post.pk %}" aria-label="Open {{ post.topic|default:'draft' }}">↗</a></td>
+                    <td><a class="row-open" href="{% url 'posts:detail' post.pk %}" aria-label="Open {{ post.topic|default:'draft' }}">Open</a></td>
                   </tr>
                 {% endfor %}
               </tbody>
