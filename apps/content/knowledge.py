@@ -242,9 +242,13 @@ def load_knowledge_context(*, max_examples: int = 5) -> KnowledgeContext:
     usable = ContentKnowledge.objects.usable()
 
     def contents(category: str) -> tuple[str, ...]:
-        return tuple(
-            usable.filter(category=category).order_by("pk").values_list("content", flat=True)
-        )
+        category_rows = usable.filter(category=category).order_by("pk")
+        # The owner dashboard is an explicit database override for its category. If the
+        # owner clears that section, fall back to the Markdown-synced knowledge records.
+        overrides = category_rows.filter(source__startswith="owner-dashboard:")
+        if overrides.exists():
+            category_rows = overrides
+        return tuple(category_rows.values_list("content", flat=True))
 
     examples = WritingExample.objects.usable().order_by("-updated_at")[:max_examples]
     return KnowledgeContext(

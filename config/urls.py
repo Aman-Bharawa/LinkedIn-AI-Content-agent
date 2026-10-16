@@ -6,5 +6,6 @@ urlpatterns = [
     path("django-admin/", admin.site.urls),
     path("posts/", include("apps.posts.urls")),
     path("linkedin/", include("apps.linkedin.urls")),
+    path("knowledge/", include("apps.content.urls")),
     path("", include("apps.core.urls")),
 ]

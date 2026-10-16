@@ -88,7 +88,8 @@ uv run celery -A config beat -l info
 
 ## Knowledge base
 
-The AI may only use what is in `knowledge/`:
+The AI uses verified knowledge stored in the database. Markdown files in `knowledge/` are one
+source for those records:
 
 - `founder.md`, `company.md`: one fact per bullet under `## Facts`, each ending with
   `(source: ...)`. Bullets without a source are stored as unverified and never used.
@@ -100,6 +101,13 @@ The AI may only use what is in `knowledge/`:
 After editing any of these, run `uv run python manage.py sync_knowledge`. Records can also be
 reviewed in Django admin (`/django-admin/`); facts that came from the files are overwritten by
 the next sync, so change them in the files.
+
+The owner can also update founder/company facts, writing rules, and approved subject areas from
+the **Knowledge** link in the app navigation (`/knowledge/`). Those entries are stored separately
+in PostgreSQL and are not overwritten by `sync_knowledge`. Founder and company facts must include
+a source on each line using `fact | source`; only verified, active facts are supplied as factual
+support to Gemini. Dashboard-managed values take precedence over Markdown-imported values within
+their category; clearing a dashboard section restores the Markdown values for that category.
 
 ## MVP demo flow
 

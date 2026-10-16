@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Knowledge · LinkedIn AI Content Agent{% endblock %}
+
+{% block content %}
+  <section class="composer-card mb-4" aria-labelledby="knowledge-heading">
+    <div class="composer-heading">
+      <div>
+        <p class="eyebrow text-primary mb-2">AGENT CONTEXT</p>
+        <h1 id="knowledge-heading">Knowledge and writing style</h1>
+        <p class="text-secondary mb-0">Update the information Gemini can use when choosing topics, writing drafts, and reviewing them.</p>
+      </div>
+    </div>
+    <div class="composer-body">
+      <div class="alert alert-info" role="note">
+        Changes are saved to PostgreSQL and used for the next generation or review task. For each section, saved dashboard values take precedence over values imported from Markdown. Clear a section and save to return to its Markdown values. Only active, verified facts are supplied as factual support.
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+
+        <div class="mb-4">
+          <label class="form-label fw-medium" for="{{ form.founder_facts.id_for_label }}">{{ form.founder_facts.label }}</label>
+          {{ form.founder_facts }}
+          <div class="form-text">{{ form.founder_facts.help_text }}</div>
+          {% for error in form.founder_facts.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label fw-medium" for="{{ form.company_facts.id_for_label }}">{{ form.company_facts.label }}</label>
+          {{ form.company_facts }}
+          <div class="form-text">{{ form.company_facts.help_text }}</div>
+          {% for error in form.company_facts.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label fw-medium" for="{{ form.writing_style.id_for_label }}">{{ form.writing_style.label }}</label>
+          {{ form.writing_style }}
+          <div class="form-text">{{ form.writing_style.help_text }}</div>
+          {% for error in form.writing_style.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label fw-medium" for="{{ form.subject_areas.id_for_label }}">{{ form.subject_areas.label }}</label>
+          {{ form.subject_areas }}
+          <div class="form-text">{{ form.subject_areas.help_text }}</div>
+          {% for error in form.subject_areas.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <a class="btn btn-outline-secondary" href="{% url 'core:home' %}">Back to drafts</a>
+          <button class="btn btn-generate" type="submit">Save knowledge</button>
+        </div>
+      </form>
+    </div>
+  </section>
+{% endblock %}
