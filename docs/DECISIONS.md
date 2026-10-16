@@ -15,6 +15,7 @@ decisions taken at kickoff (brief section 12).
 | UI library | Bootstrap 5.3 (CSS + JS) with Django templates and HTMX, at the owner's request. |
 | Python environment | Project-local `.venv` managed by `uv`; versions pinned in `uv.lock`. |
 | Verified facts / writing samples | Not supplied yet. `founder.md` and `company.md` ship with no facts; `writing_examples/` is empty. The owner adds them later. |
+| Weekday auto-drafts (2026-10-16) | At 08:00 Asia/Kolkata on weekdays, queue three distinct-topic drafts for manual review. They are never approved or published automatically. |
 | Post format | Owner asked (M2) for the standard LinkedIn post format. Written into `writing_style.md` as rules and post structures, not as sample posts, because the brief forbids seeding generated posts as genuine examples. |
 | LinkedIn product access | Still to be confirmed by the owner before Milestone 9. |
 

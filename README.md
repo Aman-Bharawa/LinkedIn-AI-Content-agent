@@ -78,7 +78,7 @@ uv run python manage.py runserver
 # Terminal 2: Celery worker (--pool=solo is required on Windows)
 uv run celery -A config worker --pool=solo -l info
 
-# Terminal 3: weekday 08:00 draft scheduler
+# Terminal 3: weekday 08:00 scheduler (queues three distinct drafts)
 uv run celery -A config beat -l info
 ```
 
@@ -117,7 +117,9 @@ topic using verified knowledge, approved examples, and recent posts. The draft e
 review queue.
 The owner can edit, approve, or reject it; edits are versioned and the original AI output is kept.
 Only an explicit owner action on an approved post can publish it through LinkedIn's official API.
-Scheduled jobs create drafts only. Before using live generation, set `GEMINI_API_KEY` in
+At 08:00 on weekdays in the configured owner timezone, Beat queues three different-topic drafts
+for manual review. Scheduled jobs create drafts only. Before using live generation, set
+`GEMINI_API_KEY` in
 the ignored `.env` file. `GEMINI_MODEL` defaults to `gemini-3.8-flash`. Never paste an API key
 into chat or commit it.
 

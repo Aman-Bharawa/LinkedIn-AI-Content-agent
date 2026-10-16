@@ -15,9 +15,10 @@ from apps.ai.services import (
     generate_linkedin_draft,
     generate_linkedin_post,
     review_linkedin_post,
+    select_topic,
 )
 from apps.content.models import ContentPillar, ContentTopic
-from apps.core.models import ScheduledDraftRun
+from apps.core.models import WEEKDAY_AUTO_DRAFT_COUNT, ScheduledDraftRun
 
 from .models import (
     MAX_GENERATION_ATTEMPTS,
@@ -46,7 +47,13 @@ def _selected_topic(topic_id: int, model: str) -> SelectedTopic:
 
 
 @shared_task(bind=True, name="posts.generate_keyword_post", max_retries=0)
-def generate_keyword_post(self: Any, post_id: int, actor_id: int) -> str:
+def generate_keyword_post(
+    self: Any,
+    post_id: int,
+    actor_id: int,
+    selected_topic_id: int | None = None,
+    scheduled_run_id: int | None = None,
+) -> str:
     """Generate and review a keyword draft in a deduplicated background job."""
     lock_key = f"post-generation:{post_id}"
     task_id = str(getattr(self.request, "id", "generation"))
@@ -60,6 +67,12 @@ def generate_keyword_post(self: Any, post_id: int, actor_id: int) -> str:
             return "post_not_waiting_for_generation"
         if actor is None:
             transition_post(post, PostStatus.FAILED, reason="Project owner is unavailable.")
+            _finish_scheduled_post(
+                scheduled_run_id,
+                ScheduledDraftRun.Status.FAILED,
+                "No active project owner is configured.",
+                post,
+            )
             return "owner_unavailable"
         keyword = post.source_keyword
         selected: SelectedTopic | None = None
@@ -67,16 +80,23 @@ def generate_keyword_post(self: Any, post_id: int, actor_id: int) -> str:
         for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
             try:
                 if attempt == 1:
-                    generated = generate_linkedin_draft(keyword)
-                    if generated.content_topic_id is None:
-                        raise DraftGenerationError("The selected topic was not saved.")
-                    selected = _selected_topic(generated.content_topic_id, generated.model)
+                    if selected_topic_id is None:
+                        generated = generate_linkedin_draft(keyword)
+                        if generated.content_topic_id is None:
+                            raise DraftGenerationError("The selected topic was not saved.")
+                        selected = _selected_topic(generated.content_topic_id, generated.model)
+                    else:
+                        selected = _selected_topic(selected_topic_id, post.ai_model)
+                        generated = generate_linkedin_post(selected)
                 else:
                     if selected is None:
                         raise DraftGenerationError("The selected topic is unavailable.")
                     generated = generate_linkedin_post(selected, review_guidance=guidance)
             except (DraftGenerationError, ContentTopic.DoesNotExist) as exc:
                 transition_post(post, PostStatus.FAILED, actor=actor, reason=str(exc))
+                _finish_scheduled_post(
+                    scheduled_run_id, ScheduledDraftRun.Status.FAILED, str(exc), post
+                )
                 return "draft_failed"
 
             with transaction.atomic():
@@ -117,6 +137,9 @@ def generate_keyword_post(self: Any, post_id: int, actor_id: int) -> str:
                 )
             except DraftGenerationError as exc:
                 transition_post(post, PostStatus.FAILED, actor=actor, reason=str(exc))
+                _finish_scheduled_post(
+                    scheduled_run_id, ScheduledDraftRun.Status.FAILED, str(exc), post
+                )
                 return "review_failed"
 
             with transaction.atomic():
@@ -138,7 +161,10 @@ def generate_keyword_post(self: Any, post_id: int, actor_id: int) -> str:
                     prompt_version=review.prompt_version,
                 )
             if review.approved_by_ai or attempt == MAX_GENERATION_ATTEMPTS:
-                transition_post(post, PostStatus.NEEDS_MANUAL_REVIEW, actor=actor)
+                post = transition_post(post, PostStatus.NEEDS_MANUAL_REVIEW, actor=actor)
+                _finish_scheduled_post(
+                    scheduled_run_id, ScheduledDraftRun.Status.SUCCEEDED, "", post
+                )
                 return "draft_ready_for_owner_review"
             guidance = "\n".join(
                 [review.feedback, *review.problems, *review.improvement_suggestions]
@@ -246,109 +272,65 @@ def regenerate_saved_topic(self: Any, post_id: int, actor_id: int) -> str:
 
 @shared_task(bind=True, name="posts.create_weekday_auto_draft", max_retries=0)
 def create_weekday_auto_draft(self: Any) -> str:
-    """Create at most one reviewed owner draft for this local weekday; never publish."""
+    """Prepare three different topics and queue three owner-review drafts on weekdays."""
     today = timezone.localdate()
     if today.weekday() >= 5:
         return "not_a_weekday"
-    try:
-        run, created = ScheduledDraftRun.objects.get_or_create(run_date=today)
-    except IntegrityError:
-        return "already_started"
-    if not created:
-        return f"already_{run.status}"
-
     User = get_user_model()
     owner = User.objects.filter(is_active=True, is_superuser=True).order_by("pk").first()
-    if owner is None:
-        _finish_run(run, ScheduledDraftRun.Status.FAILED, "No active project owner is configured.")
-        return "owner_unavailable"
+    queued = 0
+    failed = 0
+    already_started = 0
 
-    post = LinkedInPost.objects.create(origin=PostOrigin.AUTO, status=PostStatus.DRAFT)
-    run.post = post
-    run.save(update_fields=["post"])
-    post = transition_post(post, PostStatus.GENERATING)
-    guidance = ""
-    selected: SelectedTopic | None = None
-    try:
-        for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
-            if attempt == 1:
-                generated = generate_linkedin_draft("")
-                if generated.content_topic_id is None:
-                    raise DraftGenerationError("The selected topic was not saved.")
-                selected = _selected_topic(generated.content_topic_id, generated.model)
-            else:
-                if selected is None:
-                    raise DraftGenerationError(
-                        "The selected topic is unavailable for regeneration."
-                    )
-                generated = generate_linkedin_post(selected, review_guidance=guidance)
-
-            with transaction.atomic():
-                post = LinkedInPost.objects.select_for_update().get(pk=post.pk)
-                post.topic = generated.topic
-                post.pillar = ContentPillar.objects.get(slug=generated.pillar_slug)
-                post.content_topic_id = generated.content_topic_id
-                post.hook = generated.hook
-                post.content = generated.content
-                post.hashtags = generated.hashtags
-                if attempt == 1:
-                    post.original_ai_content = generated.content
-                post.ai_model = generated.model
-                post.prompt_version = generated.prompt_version
-                post.generation_attempts = attempt
-                post.save()
-                PostVersion.objects.create(
-                    post=post,
-                    version_number=attempt,
-                    kind=(VersionKind.AI_GENERATED if attempt == 1 else VersionKind.AI_REGENERATED),
-                    topic=post.topic,
-                    hook=post.hook,
-                    content=post.content,
-                    hashtags=post.hashtags,
-                    ai_model=post.ai_model,
-                    prompt_version=post.prompt_version,
-                )
-            post = transition_post(post, PostStatus.REVIEWING)
-            review = review_linkedin_post(
-                topic=generated.topic,
-                pillar=generated.pillar_slug,
-                hook=generated.hook,
-                content=generated.content,
-                hashtags=generated.hashtags,
+    for run_number in range(1, WEEKDAY_AUTO_DRAFT_COUNT + 1):
+        try:
+            run, created = ScheduledDraftRun.objects.get_or_create(
+                run_date=today, run_number=run_number
             )
-            with transaction.atomic():
-                post = LinkedInPost.objects.select_for_update().get(pk=post.pk)
-                post.ai_review_score = review.scores["overall_score"]
-                post.ai_review_notes = review.feedback
-                post.save()
-                PostReview.objects.create(
-                    post=post,
-                    attempt_number=attempt,
-                    **review.scores,
-                    has_unsupported_claims=bool(review.unsupported_claims),
-                    unsupported_claims=review.unsupported_claims,
-                    approved_by_ai=review.approved_by_ai,
-                    feedback=review.feedback,
-                    problems=review.problems,
-                    improvement_suggestions=review.improvement_suggestions,
-                    reviewer_model=review.model,
-                    prompt_version=review.prompt_version,
-                )
-            if review.approved_by_ai or attempt == MAX_GENERATION_ATTEMPTS:
-                post = transition_post(post, PostStatus.NEEDS_MANUAL_REVIEW)
-                _finish_run(run, ScheduledDraftRun.Status.SUCCEEDED, "", post=post)
-                return "draft_ready_for_owner_review"
-            guidance = "\n".join(
-                [review.feedback, *review.problems, *review.improvement_suggestions]
+        except IntegrityError:
+            already_started += 1
+            continue
+        if not created:
+            already_started += 1
+            continue
+        if owner is None:
+            _finish_run(
+                run, ScheduledDraftRun.Status.FAILED, "No active project owner is configured."
+            )
+            failed += 1
+            continue
+
+        post: LinkedInPost | None = None
+        try:
+            selected = select_topic()
+            topic = ContentTopic.objects.get(pk=selected.topic_id)
+            topic.mark_used()
+            post = LinkedInPost.objects.create(
+                origin=PostOrigin.AUTO,
+                topic=selected.title,
+                content_topic=topic,
+                pillar=ContentPillar.objects.get(slug=selected.pillar_slug),
+                ai_model=selected.model,
+                status=PostStatus.DRAFT,
             )
             post = transition_post(post, PostStatus.GENERATING)
-    except (DraftGenerationError, ContentTopic.DoesNotExist, ContentPillar.DoesNotExist) as exc:
-        if post.status in {PostStatus.GENERATING, PostStatus.REVIEWING}:
-            transition_post(post, PostStatus.FAILED, reason=str(exc))
-        _finish_run(run, ScheduledDraftRun.Status.FAILED, str(exc), post=post)
-        return "draft_failed"
+            run.post = post
+            run.save(update_fields=["post"])
+            generate_keyword_post.delay(post.pk, owner.pk, topic.pk, run.pk)
+            queued += 1
+        except Exception as exc:
+            reason = (
+                str(exc)
+                if isinstance(exc, DraftGenerationError)
+                else "The scheduled draft could not be prepared or queued. "
+                "Check the worker and AI provider."
+            )
+            if post and post.status in {PostStatus.GENERATING, PostStatus.REVIEWING}:
+                transition_post(post, PostStatus.FAILED, reason=reason)
+            _finish_run(run, ScheduledDraftRun.Status.FAILED, reason, post=post)
+            failed += 1
 
-    return "draft_failed"
+    return f"queued_{queued}_failed_{failed}_already_started_{already_started}"
 
 
 @shared_task(bind=True, name="posts.recover_stale_work", max_retries=0)
@@ -427,3 +409,13 @@ def _finish_run(
     run.post = post
     run.completed_at = timezone.now()
     run.save(update_fields=["status", "error_message", "post", "completed_at"])
+
+
+def _finish_scheduled_post(
+    run_id: int | None, status: str, error_message: str, post: LinkedInPost
+) -> None:
+    if run_id is None:
+        return
+    run = ScheduledDraftRun.objects.filter(pk=run_id).first()
+    if run:
+        _finish_run(run, status, error_message, post=post)

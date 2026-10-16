@@ -14,7 +14,7 @@ from apps.posts.forms import GeneratePostForm
 from apps.posts.models import LinkedInPost, PostReview, PostStatus
 
 from . import health
-from .models import ScheduledDraftRun
+from .models import WEEKDAY_AUTO_DRAFT_COUNT, ScheduledDraftRun
 
 
 @require_GET
@@ -87,10 +87,8 @@ def home(request: HttpRequest) -> HttpResponse:
             "selected_status": selected_status,
             "search_term": search_term,
             "linkedin_account": LinkedInAccount.objects.filter(is_active=True).first(),
-            "latest_scheduled_run": ScheduledDraftRun.objects.filter(
+            "scheduled_runs": ScheduledDraftRun.objects.filter(
                 run_date__gte=timezone.localdate() - timedelta(days=1)
-            )
-            .select_related("post")
-            .first(),
+            ).select_related("post")[:WEEKDAY_AUTO_DRAFT_COUNT],
         },
     )

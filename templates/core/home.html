@@ -52,16 +52,20 @@
         </div>
       </section>
 
-      {% if latest_scheduled_run %}
-        <div class="alert {% if latest_scheduled_run.status == 'succeeded' %}alert-success{% else %}alert-warning{% endif %}" role="status">
-          {% if latest_scheduled_run.status == 'succeeded' and latest_scheduled_run.post %}
-            Your weekday auto draft is ready: <a href="{% url 'posts:detail' latest_scheduled_run.post.pk %}">{{ latest_scheduled_run.post.topic }}</a>. It still needs your review.
-          {% elif latest_scheduled_run.status == 'failed' %}
-            Weekday auto draft did not complete: {{ latest_scheduled_run.error_message }}
-          {% else %}
-            Weekday auto draft is being prepared.
-          {% endif %}
-        </div>
+      {% if scheduled_runs %}
+        <section class="mb-4" aria-label="Weekday automatic drafts">
+          {% for scheduled_run in scheduled_runs %}
+            <div class="alert {% if scheduled_run.status == 'succeeded' %}alert-success{% elif scheduled_run.status == 'failed' %}alert-warning{% else %}alert-info{% endif %}" role="status">
+              {% if scheduled_run.status == 'succeeded' and scheduled_run.post %}
+                Weekday idea {{ scheduled_run.run_number }} is ready: <a href="{% url 'posts:detail' scheduled_run.post.pk %}">{{ scheduled_run.post.topic }}</a>. It needs your review before publishing.
+              {% elif scheduled_run.status == 'failed' %}
+                Weekday idea {{ scheduled_run.run_number }} did not complete: {{ scheduled_run.error_message }}
+              {% else %}
+                Weekday idea {{ scheduled_run.run_number }} is being prepared.
+              {% endif %}
+            </div>
+          {% endfor %}
+        </section>
       {% endif %}
 
       <section class="composer-card mb-5" id="create-draft" aria-labelledby="generate-heading">

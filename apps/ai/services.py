@@ -13,7 +13,6 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from google import genai
-from google.genai import errors
 
 from apps.content.knowledge import load_knowledge_context
 from apps.content.models import ContentFormat, ContentPillar, ContentTopic, normalize_title
@@ -220,7 +219,8 @@ Return a concise topic title, pillar slug, a specific angle, and format."""
                 },
                 store=False,
             )
-        except errors.APIError as exc:
+        except Exception as exc:
+            # The Interactions API can surface SDK-specific exceptions outside APIError.
             raise DraftGenerationError(
                 "The AI provider could not select a topic. Check the API configuration and retry."
             ) from exc
@@ -326,7 +326,8 @@ Verified knowledge and writing rules:
                 },
                 store=False,
             )
-        except errors.APIError as exc:
+        except Exception as exc:
+            # Keep SDK/provider failures in the normal owner-visible task failure path.
             raise DraftGenerationError(
                 "Gemini could not suggest a topic right now. Please try again shortly."
             ) from exc
@@ -436,7 +437,8 @@ Score all criteria and return any unsupported factual claims verbatim or by clea
             },
             store=False,
         )
-    except errors.APIError as exc:
+    except Exception as exc:
+        # The Interactions API can surface SDK-specific exceptions outside APIError.
         raise DraftGenerationError(
             "The AI provider could not review this draft. Check the API configuration and retry."
         ) from exc
@@ -557,7 +559,8 @@ if the angle would require one, frame it as a general lesson or principle instea
             },
             store=False,
         )
-    except errors.APIError as exc:
+    except Exception as exc:
+        # Keep SDK/provider failures in the normal owner-visible task failure path.
         raise DraftGenerationError(
             "The AI provider could not generate a draft. Check the API configuration and retry."
         ) from exc

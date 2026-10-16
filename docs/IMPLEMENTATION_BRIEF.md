@@ -10,7 +10,7 @@ This document turns the supplied product blueprint into an incremental implement
 >
 > 1. **Keyword posts.** The owner can type a keyword/topic and the AI writes a post about it.
 >    Leaving it blank lets the AI choose the topic.
-> 2. **Daily auto-draft kept.** The weekday 08:00 job still creates one AI-chosen draft.
+> 2. **Daily auto-draft expanded.** The weekday 08:00 job creates three different AI-chosen drafts.
 > 3. **Origin tags.** Every post is tagged by origin — **Keyword** (owner keyword) or
 >    **Auto draft** (scheduled job) — and the tag is shown in the dashboard.
 > 4. **Approval queue.** Posts awaiting approval form a sequence. Rejecting a post removes it
@@ -277,9 +277,9 @@ Each milestone is a reviewable increment. Do not start the next milestone until 
 
 ### Milestone 12 — Scheduler and dashboard notifications
 
-**Build:** Celery Beat schedule, initially weekdays at 08:00 in the configured owner timezone, that creates and reviews a draft only (origin `auto`, tagged "Auto draft"). Add dashboard notification when ready. No scheduled action may publish.
+**Build:** Celery Beat schedule, initially weekdays at 08:00 in the configured owner timezone, that selects three distinct topics and queues three reviewed drafts (origin `auto`, tagged "Auto draft"). Add dashboard notifications for each result. No scheduled action may publish.
 
-**Acceptance:** Scheduler creates at most one draft per configured run, respects timezone and duplicate safeguards, and never approves or publishes a draft.
+**Acceptance:** Scheduler creates at most three distinct-topic drafts per configured run, respects timezone and duplicate safeguards, and never approves or publishes a draft.
 
 ### Milestone 13 — Production hardening and deployment
 

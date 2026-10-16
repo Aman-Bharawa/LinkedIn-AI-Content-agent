@@ -35,7 +35,7 @@ Never pass the client secret or access token to a user-facing page or log.
 6. Verify `/health/` and `/health/ready/`, owner login, a generated draft, and a worker task. Do
    not use a real publish action as a deployment smoke test; verify publishing with a mock first.
 7. Confirm the dashboard says an approved post can be published only after an owner explicitly
-   presses **Publish this approved post now**. The weekday Beat task creates drafts only.
+   presses **Publish this approved post now**. The weekday 08:00 Beat task queues three drafts for review only.
 
 The Compose `web` command runs migrations for the single-instance local stack. For production or
 multiple web replicas, use the one-off release migration above and override the Compose web

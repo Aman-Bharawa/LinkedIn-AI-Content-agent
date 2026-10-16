@@ -9,6 +9,8 @@ from django.db import models
 
 from apps.core.security import redact_secrets
 
+WEEKDAY_AUTO_DRAFT_COUNT = 3
+
 
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
@@ -50,14 +52,15 @@ class AuditAction(models.TextChoices):
 
 
 class ScheduledDraftRun(models.Model):
-    """One idempotent weekday auto-draft run per owner-local calendar date."""
+    """One idempotent weekday auto-draft slot per owner-local calendar date."""
 
     class Status(models.TextChoices):
         STARTED = "started", "Started"
         SUCCEEDED = "succeeded", "Succeeded"
         FAILED = "failed", "Failed"
 
-    run_date = models.DateField(unique=True)
+    run_date = models.DateField()
+    run_number = models.PositiveSmallIntegerField(default=1)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.STARTED)
     post = models.ForeignKey("posts.LinkedInPost", null=True, blank=True, on_delete=models.SET_NULL)
     error_message = models.TextField(blank=True)
@@ -65,16 +68,19 @@ class ScheduledDraftRun(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        ordering = ["-run_date"]
+        ordering = ["-run_date", "run_number"]
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(status__in=["started", "succeeded", "failed"]),
                 name="scheduled_run_status_valid",
             ),
+            models.UniqueConstraint(
+                fields=["run_date", "run_number"], name="scheduled_run_date_number_uniq"
+            ),
         ]
 
     def __str__(self) -> str:
-        return f"Auto-draft run {self.run_date} ({self.status})"
+        return f"Auto-draft {self.run_number} for {self.run_date} ({self.status})"
 
     def save(self, *args: Any, **kwargs: Any) -> None:
         self.error_message = redact_secrets(self.error_message)
