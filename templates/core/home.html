@@ -52,8 +52,12 @@
             {% if form.keyword.errors %}<div class="text-danger small mt-1">{{ form.keyword.errors|join:", " }}</div>{% endif %}
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-3">
               <span class="small text-secondary">AI drafts are never published automatically.</span>
-              <button type="submit" class="btn btn-primary btn-lg">Generate draft</button>
+              <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-outline-primary btn-lg" id="suggest-topic">Suggest a topic</button>
+                <button type="submit" class="btn btn-primary btn-lg">Generate draft</button>
+              </div>
             </div>
+            <p class="small text-secondary mt-2 mb-0" id="topic-suggestion-status" aria-live="polite"></p>
           </form>
         </div>
       </section>
@@ -105,4 +109,40 @@
       </section>
     </div>
   </div>
+{% endblock %}
+
+{% block extra_js %}
+  {{ suggested_topics|json_script:"suggested-topics-data" }}
+  <script>
+    (() => {
+      const input = document.getElementById("id_keyword");
+      const button = document.getElementById("suggest-topic");
+      const status = document.getElementById("topic-suggestion-status");
+      const topicData = document.getElementById("suggested-topics-data");
+      if (!input || !button || !status || !topicData) return;
+
+      const savedTopics = JSON.parse(topicData.textContent);
+      const fallbackTopics = [
+        "How early-stage teams can validate a product idea before building it",
+        "A practical way to make code reviews more useful for a small team",
+        "What developers should consider before adopting AI coding tools",
+        "How smaller software releases help teams learn from users sooner",
+        "Ways to balance technical debt with shipping product improvements",
+        "How engineers can protect focused time while working across a busy team"
+      ];
+      const topics = savedTopics.length ? savedTopics : fallbackTopics;
+      let lastTopic = "";
+
+      button.addEventListener("click", () => {
+        const choices = topics.filter((topic) => topic !== lastTopic);
+        const topic = choices[Math.floor(Math.random() * choices.length)] || topics[0];
+        input.value = topic;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+        lastTopic = topic;
+        status.textContent = "Topic added. You can edit it, then generate your draft.";
+      });
+    })();
+  </script>
 {% endblock %}

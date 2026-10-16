@@ -10,6 +10,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
 
 from apps.accounts.models import LinkedInAccount, is_owner
+from apps.content.models import ContentTopic
 from apps.posts.forms import GeneratePostForm
 from apps.posts.models import LinkedInPost, PostReview, PostStatus
 
@@ -67,6 +68,11 @@ def home(request: HttpRequest) -> HttpResponse:
             "selected_status": selected_status,
             "search_term": search_term,
             "linkedin_account": LinkedInAccount.objects.filter(is_active=True).first(),
+            "suggested_topics": list(
+                ContentTopic.objects.filter(is_active=True)
+                .order_by("used_count", "last_used_at", "-created_at")
+                .values_list("title", flat=True)[:12]
+            ),
             "latest_scheduled_run": ScheduledDraftRun.objects.filter(
                 run_date__gte=timezone.localdate() - timedelta(days=1)
             )
