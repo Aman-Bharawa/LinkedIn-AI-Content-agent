@@ -33,6 +33,7 @@ class LinkedInAccount(TimeStampedModel):
         unique=True,
         help_text="LinkedIn member URN, e.g. urn:li:person:abc123.",
     )
+    display_name = models.CharField(max_length=255, blank=True)
     access_token = EncryptedTextField()
     refresh_token = EncryptedTextField(null=True, blank=True)
     access_token_expires_at = models.DateTimeField()

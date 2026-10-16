@@ -16,7 +16,7 @@
           <div>
             <h2 class="h5 mb-1">LinkedIn account</h2>
             {% if linkedin_account %}
-              <p class="text-secondary mb-0">Connected as {{ linkedin_account.member_urn }} · expires {{ linkedin_account.access_token_expires_at|date:"M j, Y" }}</p>
+              <p class="text-secondary mb-0">Connected as {{ linkedin_account.display_name|default:"LinkedIn member" }} · expires {{ linkedin_account.access_token_expires_at|date:"M j, Y" }}</p>
             {% else %}
               <p class="text-secondary mb-0">Connect your member account before publishing an approved post.</p>
             {% endif %}

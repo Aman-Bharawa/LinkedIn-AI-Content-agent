@@ -64,7 +64,10 @@ def test_oauth_callback_stores_encrypted_account_after_identity_validation(clien
     )
     with (
         mock.patch("apps.linkedin.views.exchange_code", return_value=token),
-        mock.patch("apps.linkedin.views.member_subject", return_value="member-123"),
+        mock.patch(
+            "apps.linkedin.views.member_profile",
+            return_value=("member-123", "Aman Bharawa"),
+        ),
     ):
         response = client.get(
             reverse("linkedin:callback"), {"state": "expected-state", "code": "code"}
@@ -73,6 +76,7 @@ def test_oauth_callback_stores_encrypted_account_after_identity_validation(clien
     account = LinkedInAccount.objects.get(is_active=True)
     assert response.status_code == 302
     assert account.member_urn == "urn:li:person:member-123"
+    assert account.display_name == "Aman Bharawa"
     assert account.access_token.reveal() == "access-value"
     assert account.refresh_token.reveal() == "refresh-value"
 

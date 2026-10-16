@@ -27,7 +27,7 @@ from .services import (
     LinkedInServiceError,
     authorization_url,
     exchange_code,
-    member_subject,
+    member_profile,
 )
 
 
@@ -75,7 +75,7 @@ def callback(request: HttpRequest) -> HttpResponse:
         token = exchange_code(code)
         if not set(REQUIRED_SCOPES).issubset(token.scopes):
             raise LinkedInServiceError("LinkedIn did not grant all required permissions.")
-        subject = member_subject(token.access_token)
+        subject, display_name = member_profile(token.access_token)
     except LinkedInServiceError as exc:
         messages.error(request, str(exc))
         return redirect("core:posts-dashboard")
@@ -91,6 +91,7 @@ def callback(request: HttpRequest) -> HttpResponse:
             defaults={
                 "access_token": token.access_token,
                 "refresh_token": token.refresh_token,
+                "display_name": display_name,
                 "access_token_expires_at": now + timedelta(seconds=token.expires_in),
                 "refresh_token_expires_at": (
                     now + timedelta(seconds=token.refresh_token_expires_in)

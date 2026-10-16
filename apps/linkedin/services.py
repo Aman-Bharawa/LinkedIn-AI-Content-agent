@@ -118,7 +118,7 @@ def exchange_code(code: str) -> OAuthToken:
     )
 
 
-def member_subject(access_token: str) -> str:
+def member_profile(access_token: str) -> tuple[str, str]:
     _, _, payload = _request(
         USERINFO_URL,
         headers={"Authorization": f"Bearer {access_token}"},
@@ -126,7 +126,16 @@ def member_subject(access_token: str) -> str:
     subject = payload.get("sub")
     if not isinstance(subject, str) or not subject or len(subject) > 200:
         raise LinkedInServiceError("LinkedIn did not return a usable member identity.")
-    return subject
+    name = payload.get("name")
+    if not isinstance(name, str) or not name.strip():
+        given_name = payload.get("given_name")
+        family_name = payload.get("family_name")
+        name = " ".join(
+            value.strip()
+            for value in (given_name, family_name)
+            if isinstance(value, str) and value.strip()
+        )
+    return subject, name.strip()[:255] if isinstance(name, str) else ""
 
 
 def publish_text_post(*, access_token: str, author_urn: str, text: str) -> tuple[int, str]:
