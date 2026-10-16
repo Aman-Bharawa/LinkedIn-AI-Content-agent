@@ -7,10 +7,9 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
 
 from apps.accounts.models import LinkedInAccount, is_owner
-from apps.content.models import ContentTopic
 from apps.posts.forms import GeneratePostForm
 from apps.posts.models import LinkedInPost, PostReview, PostStatus
 
@@ -38,6 +37,21 @@ def readiness(request: HttpRequest) -> JsonResponse:
         {"status": "ok" if ready else "unavailable", "checks": checks},
         status=200 if ready else 503,
     )
+
+
+@require_POST
+@login_required
+def suggest_topic(request: HttpRequest) -> JsonResponse:
+    if not is_owner(request.user):
+        return JsonResponse({"error": "Owner access required."}, status=403)
+    from apps.ai.services import DraftGenerationError, suggest_topic_idea
+
+    try:
+        return JsonResponse(
+            {"topic": suggest_topic_idea(exclude_topic=request.POST.get("current_topic", ""))}
+        )
+    except DraftGenerationError as exc:
+        return JsonResponse({"error": str(exc)}, status=503)
 
 
 @require_GET
@@ -68,11 +82,6 @@ def home(request: HttpRequest) -> HttpResponse:
             "selected_status": selected_status,
             "search_term": search_term,
             "linkedin_account": LinkedInAccount.objects.filter(is_active=True).first(),
-            "suggested_topics": list(
-                ContentTopic.objects.filter(is_active=True)
-                .order_by("used_count", "last_used_at", "-created_at")
-                .values_list("title", flat=True)[:12]
-            ),
             "latest_scheduled_run": ScheduledDraftRun.objects.filter(
                 run_date__gte=timezone.localdate() - timedelta(days=1)
             )

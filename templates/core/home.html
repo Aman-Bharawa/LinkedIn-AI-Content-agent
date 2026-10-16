@@ -112,36 +112,48 @@
 {% endblock %}
 
 {% block extra_js %}
-  {{ suggested_topics|json_script:"suggested-topics-data" }}
   <script>
     (() => {
       const input = document.getElementById("id_keyword");
       const button = document.getElementById("suggest-topic");
       const status = document.getElementById("topic-suggestion-status");
-      const topicData = document.getElementById("suggested-topics-data");
-      if (!input || !button || !status || !topicData) return;
+      const csrfToken = document.querySelector("input[name=csrfmiddlewaretoken]")?.value;
+      if (!input || !button || !status || !csrfToken) return;
 
-      const savedTopics = JSON.parse(topicData.textContent);
-      const fallbackTopics = [
-        "How early-stage teams can validate a product idea before building it",
-        "A practical way to make code reviews more useful for a small team",
-        "What developers should consider before adopting AI coding tools",
-        "How smaller software releases help teams learn from users sooner",
-        "Ways to balance technical debt with shipping product improvements",
-        "How engineers can protect focused time while working across a busy team"
-      ];
-      const topics = savedTopics.length ? savedTopics : fallbackTopics;
-      let lastTopic = "";
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        button.textContent = "Asking Gemini…";
+        status.textContent = "Generating a fresh topic suggestion…";
+        try {
+          const response = await fetch("{% url 'core:suggest-topic' %}", {
+            method: "POST",
+            headers: {
+              "Accept": "application/json",
+              "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+              "X-CSRFToken": csrfToken
+            },
+            body: new URLSearchParams({ current_topic: input.value }),
+            credentials: "same-origin"
+          });
+          const contentType = response.headers.get("content-type") || "";
+          if (!contentType.includes("application/json")) {
+            throw new Error("Your session may have expired. Refresh the page and try again.");
+          }
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || "Gemini could not suggest a topic.");
 
-      button.addEventListener("click", () => {
-        const choices = topics.filter((topic) => topic !== lastTopic);
-        const topic = choices[Math.floor(Math.random() * choices.length)] || topics[0];
-        input.value = topic;
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.focus();
-        input.setSelectionRange(input.value.length, input.value.length);
-        lastTopic = topic;
-        status.textContent = "Topic added. You can edit it, then generate your draft.";
+          input.value = result.topic;
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+          status.textContent =
+            "Gemini suggested this topic. Edit it if you like, then generate your draft.";
+        } catch (error) {
+          status.textContent = error.message || "Could not get a topic suggestion. Please try again.";
+        } finally {
+          button.disabled = false;
+          button.textContent = "Suggest a topic";
+        }
       });
     })();
   </script>

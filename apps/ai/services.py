@@ -270,6 +270,95 @@ Return a concise topic title, pillar slug, a specific angle, and format."""
     )
 
 
+def suggest_topic_idea(*, exclude_topic: str = "") -> str:
+    """Ask Gemini for a fresh, nonduplicate topic suggestion without saving it."""
+    api_key = settings.GEMINI_API_KEY
+    model = settings.GEMINI_MODEL
+    if not api_key or not model:
+        raise DraftGenerationError("AI generation is not configured. Set GEMINI_API_KEY in .env.")
+    try:
+        allocations = get_pillar_allocations()
+    except InvalidContentStrategy as exc:
+        raise DraftGenerationError(
+            "The content strategy needs correction before generating."
+        ) from exc
+    pillar_slugs = list(allocations)
+    if not pillar_slugs:
+        raise DraftGenerationError("No active content pillars are configured.")
+    pillar_names = dict(
+        ContentPillar.objects.filter(slug__in=pillar_slugs).values_list("slug", "name")
+    )
+    recent_titles = _recent_topic_titles()
+    if exclude_topic.strip():
+        recent_titles.append(exclude_topic.strip()[:255])
+    strategy_json = json.dumps(
+        [
+            {"slug": slug, "name": pillar_names[slug], "target_share": str(allocations[slug])}
+            for slug in pillar_slugs
+        ]
+    )
+    client = genai.Client(
+        api_key=api_key, http_options={"timeout": settings.GEMINI_TIMEOUT_SECONDS * 1000}
+    )
+    prompt = f"""Suggest one fresh, specific LinkedIn post topic for the account owner.
+Choose a configured content pillar, follow the verified knowledge and writing rules, and avoid
+topics that duplicate the recent list. Return a concise title that can be used as a topic prompt.
+Do not invent personal stories, customers, metrics, results, or company facts.
+
+Configured pillars and target shares:
+{strategy_json}
+
+Allowed formats: {json.dumps(list(ContentFormat.values))}
+Recently used topics to avoid: {json.dumps(recent_titles[-50:], ensure_ascii=False)}
+
+Verified knowledge and writing rules:
+{_knowledge_prompt()}
+"""
+    for _attempt in range(MAX_TOPIC_ATTEMPTS):
+        try:
+            response = client.interactions.create(
+                model=model,
+                input=prompt,
+                response_format={
+                    "type": "text",
+                    "mime_type": "application/json",
+                    "schema": _topic_schema(pillar_slugs),
+                },
+                store=False,
+            )
+        except errors.APIError as exc:
+            raise DraftGenerationError(
+                "Gemini could not suggest a topic right now. Please try again shortly."
+            ) from exc
+        try:
+            data = json.loads(response.output_text)
+            title = str(data["title"]).strip()
+            pillar_slug = str(data["pillar_slug"]).strip()
+            angle = str(data["angle"]).strip()
+            post_format = str(data["format"]).strip()
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            raise DraftGenerationError(
+                "Gemini returned an incomplete topic suggestion. Please try again."
+            ) from exc
+        if (
+            not title
+            or len(title) > 255
+            or not angle
+            or pillar_slug not in pillar_slugs
+            or post_format not in ContentFormat.values
+        ):
+            raise DraftGenerationError(
+                "Gemini returned an incomplete topic suggestion. Please try again."
+            )
+        if not _is_duplicate_topic(title, recent_titles):
+            return title
+        recent_titles.append(title)
+        prompt += "\n\nThat suggestion was too similar to a recent topic. Choose a different one."
+    raise DraftGenerationError(
+        "Gemini could not find a sufficiently different topic. Please try again."
+    )
+
+
 def _knowledge_prompt() -> str:
     context = load_knowledge_context()
     sections = [
