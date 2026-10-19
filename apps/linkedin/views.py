@@ -15,12 +15,6 @@ from django.views.decorators.http import require_GET, require_POST
 
 from apps.accounts.models import LinkedInAccount, is_owner
 from apps.core.models import AuditAction, AuditEvent
-from apps.posts.models import (
-    ACTIVE_PUBLICATION_STATUSES,
-    LinkedInPost,
-    PostPublication,
-    PostStatus,
-)
 
 from .services import (
     REQUIRED_SCOPES,
@@ -133,45 +127,3 @@ def disconnect(request: HttpRequest) -> HttpResponse:
     else:
         messages.info(request, "No LinkedIn account is connected.")
     return redirect("core:posts-dashboard")
-
-
-@require_POST
-@login_required
-def publish(request: HttpRequest, post_id: int) -> HttpResponse:
-    denied = _owner_denied(request)
-    if denied:
-        return denied
-    post = LinkedInPost.objects.filter(pk=post_id).first()
-    if post is None:
-        messages.error(request, "Post not found.")
-        return redirect("core:posts-dashboard")
-    if post.status != PostStatus.APPROVED or not post.is_publishable:
-        messages.error(request, "Only an owner-approved post can be published.")
-        return redirect("posts:detail", post_id=post.pk)
-    account = LinkedInAccount.objects.filter(is_active=True).first()
-    if account is None:
-        messages.error(request, "Connect a LinkedIn account before publishing.")
-        return redirect("posts:detail", post_id=post.pk)
-    if account.is_access_token_expired():
-        messages.error(
-            request, "Reconnect LinkedIn before publishing; its access token has expired."
-        )
-        return redirect("posts:detail", post_id=post.pk)
-    if not account.has_scope("w_member_social"):
-        messages.error(request, "Reconnect LinkedIn after granting the post publishing permission.")
-        return redirect("posts:detail", post_id=post.pk)
-    if PostPublication.objects.filter(post=post, status__in=ACTIVE_PUBLICATION_STATUSES).exists():
-        messages.error(request, "A publication attempt is already active or needs reconciliation.")
-        return redirect("posts:detail", post_id=post.pk)
-    try:
-        from .tasks import publish_approved_post
-
-        publish_approved_post.delay(post.pk, cast(Any, request.user).pk)
-    except Exception:
-        messages.error(request, "Publishing could not be queued. Check the worker and try again.")
-        return redirect("posts:detail", post_id=post.pk)
-    messages.success(
-        request,
-        "Your publish request was queued. Check the post status before requesting another publish.",
-    )
-    return redirect("posts:detail", post_id=post.pk)

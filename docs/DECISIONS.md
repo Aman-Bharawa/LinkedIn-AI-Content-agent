@@ -11,11 +11,12 @@ decisions taken at kickoff (brief section 12).
 | Codebase | Fresh Python implementation. There is no Rails prototype or data to migrate. |
 | Users | Single owner (brief section 2). |
 | Owner timezone | `Asia/Kolkata`. Times are stored in UTC and shown/scheduled in IST. |
-| Workflow (brief amended 2026-10-14) | Owner keyword → AI post → approval queue → approve or reject (reject removes from the queue). Weekday 08:00 auto-draft job kept. Posts tagged **Keyword** or **Auto draft**. **Publishing stays manual** as in the original brief: no scheduled job publishes. See the amendments at the top of the brief. |
+| Workflow (brief amended 2026-10-14, 2026-10-19) | Owner keyword → AI post → approval queue → approve with a future publish time or reject. Weekday 08:00 auto-draft job kept. Posts tagged **Keyword** or **Auto draft**. Scheduled publishing only runs after explicit owner approval and time selection. |
 | UI library | Bootstrap 5.3 (CSS + JS) with Django templates and HTMX, at the owner's request. |
 | Python environment | Project-local `.venv` managed by `uv`; versions pinned in `uv.lock`. |
 | Verified facts / writing samples | Not supplied yet. `founder.md` and `company.md` ship with no facts; `writing_examples/` is empty. The owner adds them later. |
 | Weekday auto-drafts (2026-10-16) | At 08:00 Asia/Kolkata on weekdays, queue three distinct-topic drafts for manual review. They are never approved or published automatically. |
+| Scheduled publication (2026-10-19) | Owner approval requires a future time in `Asia/Kolkata`. Beat scans each minute; a due approved post is queued once, then the existing guarded LinkedIn publisher task sends it. Owner can reschedule or cancel until publishing starts. |
 | Post format | Owner asked (M2) for the standard LinkedIn post format. Written into `writing_style.md` as rules and post structures, not as sample posts, because the brief forbids seeding generated posts as genuine examples. |
 | LinkedIn product access | Still to be confirmed by the owner before Milestone 9. |
 

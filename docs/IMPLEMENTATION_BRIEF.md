@@ -15,8 +15,10 @@ This document turns the supplied product blueprint into an incremental implement
 >    **Auto draft** (scheduled job) — and the tag is shown in the dashboard.
 > 4. **Approval queue.** Posts awaiting approval form a sequence. Rejecting a post removes it
 >    from the sequence (it is kept in history, not deleted).
-> 5. **Publishing stays manual, as originally written.** The owner publishes an approved post
->    themselves. No scheduled job ever publishes.
+> 5. **Scheduled publishing.** Approval requires the owner to choose a future publication time.
+>    Celery Beat queues the already-approved post at that time and the worker publishes it through
+>    LinkedIn. The owner may reschedule or cancel before publication starts. No unapproved post is
+>    ever published.
 
 ## 1. Project objective
 
@@ -31,8 +33,8 @@ Owner keyword request (origin: Keyword)  or  weekday 08:00 auto-draft job (origi
   -> generate a structured post
   -> review and, if needed, regenerate (maximum three attempts)
   -> save the draft into the approval queue (pending approval)
-  -> User edits, rejects (removed from the queue), or approves it
-  -> the owner publishes an approved post through LinkedIn's official API
+  -> owner edits, rejects (removed from the queue), or approves with a future publish time
+  -> Beat queues the due post for the guarded LinkedIn publisher task
   -> retain the LinkedIn post ID and publication record
 ```
 
@@ -267,7 +269,7 @@ Each milestone is a reviewable increment. Do not start the next milestone until 
 
 **Safety and idempotency:** Only `approved` posts may transition to `publishing`; lock the row/attempt transactionally to prevent concurrent publication. Never blindly retry an ambiguous timeout that might have published. Resolve uncertain outcomes through safe reconciliation or hold for manual review. Do not log bearer tokens or full authorization headers.
 
-**Acceptance:** An owner-approved post publishes through LinkedIn's official API; response ID is saved; duplicate task delivery cannot create another post; rejected, failed, or unapproved posts cannot publish. Pin `LINKEDIN_API_VERSION` from current documentation and review version sunsets before release.
+**Acceptance:** A post with recorded owner approval and an owner-selected due time publishes through LinkedIn's official API; response ID is saved; duplicate task delivery cannot create another post; rejected, failed, or unscheduled posts cannot publish. Pin `LINKEDIN_API_VERSION` from current documentation and review version sunsets before release.
 
 ### Milestone 11 — Background processing
 
@@ -277,9 +279,9 @@ Each milestone is a reviewable increment. Do not start the next milestone until 
 
 ### Milestone 12 — Scheduler and dashboard notifications
 
-**Build:** Celery Beat schedule, initially weekdays at 08:00 in the configured owner timezone, that selects three distinct topics and queues three reviewed drafts (origin `auto`, tagged "Auto draft"). Add dashboard notifications for each result. No scheduled action may publish.
+**Build:** Celery Beat schedule, initially weekdays at 08:00 in the configured owner timezone, that selects three distinct topics and queues three reviewed drafts (origin `auto`, tagged "Auto draft"). Add dashboard notifications for each result. This draft-generation schedule never approves or publishes posts. A separate due-publication schedule processes only owner-approved posts with an owner-selected time.
 
-**Acceptance:** Scheduler creates at most three distinct-topic drafts per configured run, respects timezone and duplicate safeguards, and never approves or publishes a draft.
+**Acceptance:** The auto-draft scheduler creates at most three distinct-topic drafts per configured run, respects timezone and duplicate safeguards, and never approves or publishes a draft. The publication scheduler sends only approved posts whose scheduled time has arrived.
 
 ### Milestone 13 — Production hardening and deployment
 
@@ -294,7 +296,7 @@ The following are release-blocking tests:
 1. AI generation failure never creates a published post.
 2. AI review failure never publishes.
 3. Rejected posts cannot publish.
-4. Only owner-approved posts can publish.
+4. Only owner-approved posts with an owner-selected publication time can publish.
 5. Failed LinkedIn requests are recorded without leaking tokens.
 6. LinkedIn access/refresh tokens never appear in templates, API payloads, or logs.
 7. Duplicate task delivery cannot publish the same post twice.
@@ -302,7 +304,7 @@ The following are release-blocking tests:
 9. Manual edits and original AI content are both preserved.
 10. Unauthenticated users cannot access dashboard routes or actions.
 11. Unsupported claims block movement to owner approval or are clearly flagged for manual review.
-12. Scheduled tasks create drafts only; they never publish.
+12. The weekday auto-draft task creates drafts only; scheduled publishing requires recorded owner approval and a selected time.
 
 Use mocked Gemini and LinkedIn clients in unit/integration tests. Live API verification belongs in an explicit manual test environment and must never run as part of the normal test suite.
 

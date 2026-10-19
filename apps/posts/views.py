@@ -7,12 +7,13 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from apps.accounts.models import is_owner
 from apps.core.models import AuditAction, AuditEvent
 
-from .forms import GeneratePostForm, PostEditForm
+from .forms import GeneratePostForm, PostEditForm, SchedulePublicationForm
 from .models import (
     MAX_GENERATION_ATTEMPTS,
     LinkedInPost,
@@ -174,6 +175,9 @@ def post_detail(request: HttpRequest, post_id: int) -> HttpResponse:
                 and post.content_topic_id is not None
             ),
             "can_review": post.status in QUEUE_STATUSES,
+            "can_schedule": post.status == PostStatus.APPROVED,
+            "schedule_form": SchedulePublicationForm(initial={"scheduled_for": post.scheduled_for}),
+            "display_timezone": timezone.get_current_timezone_name(),
         },
     )
 
@@ -182,12 +186,87 @@ def post_detail(request: HttpRequest, post_id: int) -> HttpResponse:
 @require_POST
 def approve_post(request: HttpRequest, post_id: int) -> HttpResponse:
     post = get_object_or_404(LinkedInPost, pk=post_id)
+    form = SchedulePublicationForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Choose a valid future date and time to schedule this post.")
+        return redirect("posts:detail", post_id=post.pk)
     try:
-        post = transition_post(post, PostStatus.APPROVED, actor=request.user)
+        with transaction.atomic():
+            post = transition_post(post, PostStatus.APPROVED, actor=request.user)
+            post.scheduled_for = form.cleaned_data["scheduled_for"]
+            post.publication_queued_at = None
+            post.save(update_fields=["scheduled_for", "publication_queued_at", "updated_at"])
+            AuditEvent.objects.create(
+                actor=request.user,
+                action=AuditAction.STATUS_CHANGE,
+                post=post,
+                from_status=PostStatus.APPROVED,
+                to_status=PostStatus.APPROVED,
+                metadata={"scheduled_for": post.scheduled_for.isoformat()},
+            )
     except InvalidTransition:
         messages.error(request, "This post is no longer waiting for owner approval.")
         return redirect("posts:detail", post_id=post.pk)
-    messages.success(request, "Post approved. Publishing remains a separate manual step.")
+    messages.success(
+        request,
+        "Post approved and added to the automatic publishing queue.",
+    )
+    return redirect("posts:detail", post_id=post.pk)
+
+
+@owner_required
+@require_POST
+def schedule_post(request: HttpRequest, post_id: int) -> HttpResponse:
+    form = SchedulePublicationForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Choose a valid future date and time to schedule this post.")
+        return redirect("posts:detail", post_id=post_id)
+    with transaction.atomic():
+        post = get_object_or_404(LinkedInPost.objects.select_for_update(), pk=post_id)
+        if post.status != PostStatus.APPROVED or not post.is_publishable:
+            messages.error(request, "Only an owner-approved post can be scheduled.")
+            return redirect("posts:detail", post_id=post.pk)
+        post.scheduled_for = form.cleaned_data["scheduled_for"]
+        post.publication_queued_at = None
+        post.last_error = ""
+        post.save(
+            update_fields=["scheduled_for", "publication_queued_at", "last_error", "updated_at"]
+        )
+        AuditEvent.objects.create(
+            actor=request.user,
+            action=AuditAction.STATUS_CHANGE,
+            post=post,
+            from_status=PostStatus.APPROVED,
+            to_status=PostStatus.APPROVED,
+            metadata={"scheduled_for": post.scheduled_for.isoformat()},
+        )
+    messages.success(request, "The approved post's automatic publishing time was updated.")
+    return redirect("posts:detail", post_id=post.pk)
+
+
+@owner_required
+@require_POST
+def cancel_schedule(request: HttpRequest, post_id: int) -> HttpResponse:
+    with transaction.atomic():
+        post = get_object_or_404(LinkedInPost.objects.select_for_update(), pk=post_id)
+        if (
+            post.status != PostStatus.APPROVED
+            or post.scheduled_for is None
+            or post.publication_queued_at is not None
+        ):
+            messages.error(request, "This post's schedule can no longer be cancelled.")
+            return redirect("posts:detail", post_id=post.pk)
+        post.scheduled_for = None
+        post.save(update_fields=["scheduled_for", "updated_at"])
+        AuditEvent.objects.create(
+            actor=request.user,
+            action=AuditAction.STATUS_CHANGE,
+            post=post,
+            from_status=PostStatus.APPROVED,
+            to_status=PostStatus.APPROVED,
+            metadata={"schedule_cancelled": True},
+        )
+    messages.info(request, "Automatic publishing was cancelled. The approved post stays in drafts.")
     return redirect("posts:detail", post_id=post.pk)
 
 

@@ -113,7 +113,7 @@
                   <tr>
                     <td><a class="post-title-link" href="{% url 'posts:detail' post.pk %}">{{ post.topic|default:"Untitled draft" }}</a><div class="post-meta">{{ post.get_origin_display }} · {{ post.created_at|date:"M j, Y, g:i a" }}</div></td>
                     <td><span class="pillar-label">{{ post.pillar.name|default:"Unassigned" }}</span></td>
-                    <td><span class="status-pill status-{{ post.status }}"><span aria-hidden="true"></span>{{ post.get_status_display }}</span></td>
+                    <td><span class="status-pill status-{{ post.status }}"><span aria-hidden="true"></span>{{ post.get_status_display }}</span>{% if post.status == 'approved' and post.scheduled_for %}<div class="post-meta">Auto-publish {{ post.scheduled_for|date:"M j, g:i a" }}</div>{% endif %}</td>
                     <td>{% if post.ai_review_score or post.ai_review_score == 0 %}<span class="score-label">{{ post.ai_review_score }}<small>/10</small></span>{% else %}<span class="muted-dash">—</span>{% endif %}</td>
                     <td><a class="row-open" href="{% url 'posts:detail' post.pk %}" aria-label="Open {{ post.topic|default:'draft' }}">Open</a></td>
                   </tr>

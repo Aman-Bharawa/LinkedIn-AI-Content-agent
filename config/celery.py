@@ -18,6 +18,10 @@ app.conf.beat_schedule = {
         "task": "posts.recover_stale_work",
         "schedule": crontab(minute="*/5"),
     },
+    "enqueue-due-linkedin-publications": {
+        "task": "linkedin.enqueue_due_publications",
+        "schedule": crontab(minute="*/1"),
+    },
 }
 
 

@@ -116,7 +116,9 @@ and stores a strategy-backed, nonduplicate topic, then asks Gemini to write the 
 topic using verified knowledge, approved examples, and recent posts. The draft enters the manual
 review queue.
 The owner can edit, approve, or reject it; edits are versioned and the original AI output is kept.
-Only an explicit owner action on an approved post can publish it through LinkedIn's official API.
+Approval requires choosing a future publication time. Beat queues the approved post, and the worker
+publishes it through LinkedIn's official API when due. The owner can reschedule or cancel before
+publication starts.
 At 08:00 on weekdays in the configured owner timezone, Beat queues three different-topic drafts
 for manual review. Scheduled jobs create drafts only. Before using live generation, set
 `GEMINI_API_KEY` in

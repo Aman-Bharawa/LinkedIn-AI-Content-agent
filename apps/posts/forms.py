@@ -1,5 +1,6 @@
 from django import forms
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from .models import normalize_hashtags
 
@@ -17,6 +18,23 @@ class GeneratePostForm(forms.Form):
             }
         ),
     )
+
+
+class SchedulePublicationForm(forms.Form):
+    scheduled_for = forms.DateTimeField(
+        label="Publish on",
+        input_formats=["%Y-%m-%dT%H:%M"],
+        widget=forms.DateTimeInput(
+            format="%Y-%m-%dT%H:%M",
+            attrs={"class": "form-control", "type": "datetime-local", "required": True},
+        ),
+    )
+
+    def clean_scheduled_for(self):
+        scheduled_for = self.cleaned_data["scheduled_for"]
+        if scheduled_for <= timezone.now():
+            raise forms.ValidationError("Choose a future date and time.")
+        return scheduled_for
 
 
 class PostEditForm(forms.Form):

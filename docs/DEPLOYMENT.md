@@ -34,8 +34,8 @@ Never pass the client secret or access token to a user-facing page or log.
 5. Create the owner with `python manage.py createsuperuser`, then sign in and connect LinkedIn.
 6. Verify `/health/` and `/health/ready/`, owner login, a generated draft, and a worker task. Do
    not use a real publish action as a deployment smoke test; verify publishing with a mock first.
-7. Confirm the dashboard says an approved post can be published only after an owner explicitly
-   presses **Publish this approved post now**. The weekday 08:00 Beat task queues three drafts for review only.
+7. Confirm approval requires a future publication time and the detail page offers reschedule/cancel
+   before publishing starts. The weekday 08:00 Beat task still queues three drafts for review only.
 
 The Compose `web` command runs migrations for the single-instance local stack. For production or
 multiple web replicas, use the one-off release migration above and override the Compose web
@@ -84,5 +84,7 @@ in the operator's incident log.
   partners.
 - A network timeout during publication is marked `unknown` / `needs manual review`. Check LinkedIn
   before taking any further action; the system will not blindly retry.
+- Scheduled publishing requires Celery Beat and a worker to be running when the selected time arrives.
+  If either process is stopped, due posts remain queued and are processed after the processes resume.
 - `manage.py check --deploy` and a backup restore rehearsal must be run in the target hosting
   environment before launch. They cannot be certified from a local checkout alone.

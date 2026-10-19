@@ -339,6 +339,14 @@ def recover_stale_work(self: Any) -> dict[str, int]:
     cutoff = timezone.now() - timedelta(minutes=15)
     recovered_generation = 0
     recovered_publication = 0
+    recovered_scheduled_queue = LinkedInPost.objects.filter(
+        status=PostStatus.APPROVED,
+        publication_queued_at__lt=cutoff,
+    ).update(
+        publication_queued_at=None,
+        last_error="The publishing worker did not start; the app will retry this scheduled post.",
+        updated_at=timezone.now(),
+    )
     for post in LinkedInPost.objects.filter(
         status__in=[PostStatus.GENERATING, PostStatus.REVIEWING], updated_at__lt=cutoff
     ).iterator():
@@ -393,6 +401,7 @@ def recover_stale_work(self: Any) -> dict[str, int]:
     return {
         "generation_jobs_recovered": recovered_generation,
         "publications_recovered": recovered_publication,
+        "scheduled_publications_requeued": recovered_scheduled_queue,
         "scheduled_runs_recovered": recovered_runs,
     }
 

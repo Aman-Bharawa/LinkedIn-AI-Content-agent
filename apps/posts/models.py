@@ -120,6 +120,7 @@ class LinkedInPost(TimeStampedModel):
 
     linkedin_post_urn = models.CharField(max_length=255, null=True, blank=True, unique=True)
     scheduled_for = models.DateTimeField(null=True, blank=True)
+    publication_queued_at = models.DateTimeField(null=True, blank=True)
     published_at = models.DateTimeField(null=True, blank=True)
 
     is_manually_edited = models.BooleanField(default=False)
