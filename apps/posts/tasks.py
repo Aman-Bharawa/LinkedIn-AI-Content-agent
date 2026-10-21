@@ -21,6 +21,7 @@ from apps.content.models import ContentPillar, ContentTopic
 from apps.core.models import WEEKDAY_AUTO_DRAFT_COUNT, ScheduledDraftRun
 
 from .models import (
+    MAX_AUTOMATIC_GENERATION_ATTEMPTS,
     MAX_GENERATION_ATTEMPTS,
     LinkedInPost,
     PostOrigin,
@@ -77,7 +78,7 @@ def generate_keyword_post(
         keyword = post.source_keyword
         selected: SelectedTopic | None = None
         guidance = ""
-        for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
+        for attempt in range(1, MAX_AUTOMATIC_GENERATION_ATTEMPTS + 1):
             try:
                 if attempt == 1:
                     if selected_topic_id is None:
@@ -160,7 +161,7 @@ def generate_keyword_post(
                     reviewer_model=review.model,
                     prompt_version=review.prompt_version,
                 )
-            if review.approved_by_ai or attempt == MAX_GENERATION_ATTEMPTS:
+            if review.approved_by_ai or attempt == MAX_AUTOMATIC_GENERATION_ATTEMPTS:
                 post = transition_post(post, PostStatus.NEEDS_MANUAL_REVIEW, actor=actor)
                 _finish_scheduled_post(
                     scheduled_run_id, ScheduledDraftRun.Status.SUCCEEDED, "", post

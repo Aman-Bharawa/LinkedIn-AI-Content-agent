@@ -11,7 +11,10 @@ from django.db import models
 from apps.core.models import TimeStampedModel
 from apps.core.security import redact_secrets
 
-# Brief M6: maximum three generation attempts per post.
+# One automatic generation/review pass per request. Explicit owner regenerations
+# remain available up to the lifetime cap below.
+MAX_AUTOMATIC_GENERATION_ATTEMPTS = 1
+# Brief M6: maximum three generation attempts per post, including owner regenerations.
 MAX_GENERATION_ATTEMPTS = 3
 
 SCORE_MIN = 0

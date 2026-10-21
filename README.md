@@ -125,9 +125,11 @@ for manual review. Scheduled jobs create drafts only. Before using live generati
 the ignored `.env` file. `GEMINI_MODEL` defaults to `gemini-3.8-flash`. Never paste an API key
 into chat or commit it.
 
-Each draft receives a structured quality review. Low quality scores, excessive AI-like,
-promotional, or repetitive writing, or any unsupported claim trigger at most three generation
-attempts. The owner still reviews and approves every draft; AI review never approves or publishes.
+Each draft receives one generated version and a structured quality review. The draft then goes
+to the owner for manual review, even when the AI review flags quality issues; the owner can use
+the explicit Regenerate action to request another version, within the three-attempt lifetime cap.
+AI review never approves or publishes. The weekday job still creates three separate drafts on
+distinct topics.
 
 Google AI Studio offers a free Gemini API tier for eligible models, subject to changing quotas.
 Google may use content submitted through the unpaid tier to improve its products. Do not include
