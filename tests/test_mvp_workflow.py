@@ -1,9 +1,11 @@
 import json
+from datetime import timedelta
 from unittest import mock
 
 import pytest
 from django.test import override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.ai.services import (
     DraftGenerationError,
@@ -120,7 +122,11 @@ def test_owner_can_edit_then_approve_post_with_original_preserved(client, owner,
         VersionKind.OWNER_EDIT,
     ]
 
-    response = client.post(reverse("posts:approve", args=[post.pk]))
+    scheduled_for = timezone.localtime(timezone.now() + timedelta(hours=2))
+    response = client.post(
+        reverse("posts:approve", args=[post.pk]),
+        {"scheduled_for": scheduled_for.strftime("%Y-%m-%dT%H:%M")},
+    )
     assert response.status_code == 302
     post.refresh_from_db()
     assert post.status == PostStatus.APPROVED
@@ -151,7 +157,7 @@ def test_owner_dashboard_lists_and_filters_posts(client, owner, post):
 
     assert response.status_code == 200
     assert list(response.context["page_obj"].object_list) == [post]
-    assert b"AI score" in response.content
+    assert b"AI SCORE" in response.content
 
 
 @pytest.mark.django_db

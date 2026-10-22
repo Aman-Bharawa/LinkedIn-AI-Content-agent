@@ -84,6 +84,9 @@ def test_oauth_callback_stores_encrypted_account_after_identity_validation(clien
 @pytest.mark.django_db
 def test_publish_task_only_publishes_owner_approved_posts(owner, post, account):
     transition_post(post, PostStatus.APPROVED, actor=owner)
+    post.scheduled_for = timezone.now() - timedelta(minutes=1)
+    post.publication_queued_at = timezone.now()
+    post.save(update_fields=["scheduled_for", "publication_queued_at"])
     with mock.patch(
         "apps.linkedin.tasks.publish_text_post", return_value=(201, "urn:li:share:123")
     ) as publish:
@@ -103,6 +106,9 @@ def test_publish_task_only_publishes_owner_approved_posts(owner, post, account):
 @pytest.mark.django_db
 def test_publish_task_holds_ambiguous_outcome_for_manual_review(owner, post, account):
     transition_post(post, PostStatus.APPROVED, actor=owner)
+    post.scheduled_for = timezone.now() - timedelta(minutes=1)
+    post.publication_queued_at = timezone.now()
+    post.save(update_fields=["scheduled_for", "publication_queued_at"])
     with mock.patch(
         "apps.linkedin.tasks.publish_text_post",
         side_effect=LinkedInAmbiguousError("outcome unknown"),
@@ -120,7 +126,7 @@ def test_publish_task_refuses_unapproved_posts(owner, post, account):
     with mock.patch("apps.linkedin.tasks.publish_text_post") as publish:
         result = publish_approved_post.run(post.pk, owner.pk)
 
-    assert result == "post_not_approved"
+    assert result == "post_not_due_or_not_queued"
     publish.assert_not_called()
 
 
@@ -129,6 +135,9 @@ def test_expired_linkedin_account_is_not_used(owner, post, account):
     account.access_token_expires_at = timezone.now() - timedelta(minutes=1)
     account.save(update_fields=["access_token_expires_at"])
     transition_post(post, PostStatus.APPROVED, actor=owner)
+    post.scheduled_for = timezone.now() - timedelta(minutes=1)
+    post.publication_queued_at = timezone.now()
+    post.save(update_fields=["scheduled_for", "publication_queued_at"])
     with mock.patch("apps.linkedin.tasks.publish_text_post") as publish:
         result = publish_approved_post.run(post.pk, owner.pk)
 

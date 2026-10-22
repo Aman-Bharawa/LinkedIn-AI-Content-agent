@@ -163,11 +163,11 @@ def test_review_failure_and_low_scores_never_approve_or_publish(client, owner, p
     post = LinkedInPost.objects.get()
     assert response.status_code == 302
     assert post.status == PostStatus.NEEDS_MANUAL_REVIEW
-    assert post.generation_attempts == 3
-    assert post.reviews.count() == 3
+    assert post.generation_attempts == 1
+    assert post.reviews.count() == 1
     assert PostReview.objects.filter(post=post, approved_by_ai=True).count() == 0
-    assert PostVersion.objects.filter(post=post).count() == 3
-    assert regen.call_count == 2
+    assert PostVersion.objects.filter(post=post).count() == 1
+    regen.assert_not_called()
     assert not post.is_publishable
 
 
