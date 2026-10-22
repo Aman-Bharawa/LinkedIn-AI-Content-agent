@@ -197,7 +197,7 @@ def approve_post(request: HttpRequest, post_id: int) -> HttpResponse:
             post.publication_queued_at = None
             post.save(update_fields=["scheduled_for", "publication_queued_at", "updated_at"])
             AuditEvent.objects.create(
-                actor=request.user,
+                actor=cast(Any, request.user),
                 action=AuditAction.STATUS_CHANGE,
                 post=post,
                 from_status=PostStatus.APPROVED,
@@ -233,7 +233,7 @@ def schedule_post(request: HttpRequest, post_id: int) -> HttpResponse:
             update_fields=["scheduled_for", "publication_queued_at", "last_error", "updated_at"]
         )
         AuditEvent.objects.create(
-            actor=request.user,
+            actor=cast(Any, request.user),
             action=AuditAction.STATUS_CHANGE,
             post=post,
             from_status=PostStatus.APPROVED,
@@ -259,7 +259,7 @@ def cancel_schedule(request: HttpRequest, post_id: int) -> HttpResponse:
         post.scheduled_for = None
         post.save(update_fields=["scheduled_for", "updated_at"])
         AuditEvent.objects.create(
-            actor=request.user,
+            actor=cast(Any, request.user),
             action=AuditAction.STATUS_CHANGE,
             post=post,
             from_status=PostStatus.APPROVED,

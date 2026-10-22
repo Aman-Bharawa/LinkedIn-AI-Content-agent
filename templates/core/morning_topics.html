@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Morning topics · LinkedIn AI Content Agent{% endblock %}
+
+{% block content %}
+  <section class="composer-card mb-4" aria-labelledby="morning-topics-heading">
+    <div class="composer-heading">
+      <div>
+        <p class="eyebrow text-primary mb-2">DAILY DRAFT QUEUE</p>
+        <h1 id="morning-topics-heading">Morning topics</h1>
+        <p class="text-secondary mb-0">Give the agent a topic pool. Each morning it picks two different topics and prepares drafts for your review.</p>
+      </div>
+    </div>
+    <div class="composer-body">
+      <div class="alert alert-info" role="note">
+        The automatic run is scheduled for 8:00 a.m. in your configured owner timezone. It creates drafts only; nothing is approved or published automatically.
+        <strong>{{ topic_count }}</strong> topic{{ topic_count|pluralize }} saved.
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+        <label class="form-label fw-medium" for="{{ form.topics.id_for_label }}">{{ form.topics.label }}</label>
+        {{ form.topics }}
+        <div class="form-text mb-3">{{ form.topics.help_text }}</div>
+        {% for error in form.topics.errors %}<div class="text-danger small mb-2">{{ error }}</div>{% endfor %}
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <a class="btn btn-outline-secondary" href="{% url 'core:home' %}">Back to drafts</a>
+          <button class="btn btn-generate" type="submit">Save topics</button>
+        </div>
+      </form>
+    </div>
+  </section>
+{% endblock %}

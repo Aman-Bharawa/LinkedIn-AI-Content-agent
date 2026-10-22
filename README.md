@@ -78,7 +78,7 @@ uv run python manage.py runserver
 # Terminal 2: Celery worker (--pool=solo is required on Windows)
 uv run celery -A config worker --pool=solo -l info
 
-# Terminal 3: weekday 08:00 scheduler (queues three distinct drafts)
+# Terminal 3: optional Celery Beat scheduler (queues two owner-topic drafts at 08:00 daily)
 uv run celery -A config beat -l info
 ```
 
@@ -119,17 +119,47 @@ The owner can edit, approve, or reject it; edits are versioned and the original 
 Approval requires choosing a future publication time. Beat queues the approved post, and the worker
 publishes it through LinkedIn's official API when due. The owner can reschedule or cancel before
 publication starts.
-At 08:00 on weekdays in the configured owner timezone, Beat queues three different-topic drafts
-for manual review. Scheduled jobs create drafts only. Before using live generation, set
-`GEMINI_API_KEY` in
-the ignored `.env` file. `GEMINI_MODEL` defaults to `gemini-3.8-flash`. Never paste an API key
-into chat or commit it.
+At 08:00 daily in the configured owner timezone, Beat queues two drafts using different topics
+from the owner's **Morning topics** list. Scheduled jobs create drafts only. Before using live
+generation, set `GEMINI_API_KEY` in the ignored `.env` file. `GEMINI_MODEL` defaults to
+`gemini-3.8-flash`. Never paste an API key into chat or commit it.
 
 Each draft receives one generated version and a structured quality review. The draft then goes
 to the owner for manual review, even when the AI review flags quality issues; the owner can use
 the explicit Regenerate action to request another version, within the three-attempt lifetime cap.
-AI review never approves or publishes. The weekday job still creates three separate drafts on
-distinct topics.
+AI review never approves or publishes. The morning job creates two separate drafts from the saved
+topic pool. Edit the pool from **Morning topics** in the navigation; enter one topic per line and
+save at least two different topics.
+
+### Run the morning job without Celery or Redis
+
+On Windows, the direct command creates today's drafts synchronously and does not use a worker,
+Beat, or Redis:
+
+```powershell
+$env:DJANGO_SETTINGS_MODULE = "config.settings.prod"
+uv run python manage.py generate_morning_drafts
+```
+
+The production settings use the database values from `.env`. For an external Render database, the
+laptop must be online, the database must allow the laptop's current public IP, and the production
+environment values (including Gemini key and token encryption key) must be configured locally.
+The command is idempotent for the day: it won't create duplicate drafts for slots already running
+or completed. It prints the outcome; the log wrapper stores output under
+`%LOCALAPPDATA%\LinkedInAIContentAgent\logs\morning-drafts.log`.
+
+To run it every day at 8:00 a.m. without Celery services, create a Windows Task Scheduler task:
+
+1. Open **Task Scheduler** → **Create Basic Task**. Name it `LinkedIn morning drafts`.
+2. Choose **Daily**, set the start time to **8:00:00 AM**, and choose **Start a program**.
+3. Program: `powershell.exe`
+4. Arguments: `-NoProfile -ExecutionPolicy Bypass -File "C:\path\to\Linkedin AI content agent\scripts\run_morning_drafts.ps1"`
+5. Replace the example path with this repository's actual path, then finish and enable the task.
+
+The computer must be awake and connected to the internet at that time. If it is asleep, enable
+**Wake the computer to run this task** in the task's Conditions. Configure the task to run under
+the Windows account that owns this repository and its `.env` file. The script uses the same
+database and AI generation flow as the Beat task; it doesn't publish posts.
 
 Google AI Studio offers a free Gemini API tier for eligible models, subject to changing quotas.
 Google may use content submitted through the unpaid tier to improve its products. Do not include

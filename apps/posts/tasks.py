@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import random
+from contextlib import suppress
 from datetime import timedelta
 from typing import Any
 
@@ -15,10 +17,9 @@ from apps.ai.services import (
     generate_linkedin_draft,
     generate_linkedin_post,
     review_linkedin_post,
-    select_topic,
 )
 from apps.content.models import ContentPillar, ContentTopic
-from apps.core.models import WEEKDAY_AUTO_DRAFT_COUNT, ScheduledDraftRun
+from apps.core.models import MORNING_DRAFT_COUNT, MorningTopic, ScheduledDraftRun
 
 from .models import (
     MAX_AUTOMATIC_GENERATION_ATTEMPTS,
@@ -54,11 +55,12 @@ def generate_keyword_post(
     actor_id: int,
     selected_topic_id: int | None = None,
     scheduled_run_id: int | None = None,
+    use_cache_lock: bool = True,
 ) -> str:
     """Generate and review a keyword draft in a deduplicated background job."""
     lock_key = f"post-generation:{post_id}"
     task_id = str(getattr(self.request, "id", "generation"))
-    if not cache.add(lock_key, task_id, timeout=360):
+    if use_cache_lock and not cache.add(lock_key, task_id, timeout=360):
         return "generation_already_running"
     User = get_user_model()
     actor = User.objects.filter(pk=actor_id, is_active=True, is_superuser=True).first()
@@ -173,7 +175,7 @@ def generate_keyword_post(
             post = transition_post(post, PostStatus.GENERATING, actor=actor)
         return "draft_failed"
     finally:
-        if cache.get(lock_key) == task_id:
+        if use_cache_lock and cache.get(lock_key) == task_id:
             cache.delete(lock_key)
 
 
@@ -273,65 +275,130 @@ def regenerate_saved_topic(self: Any, post_id: int, actor_id: int) -> str:
 
 @shared_task(bind=True, name="posts.create_weekday_auto_draft", max_retries=0)
 def create_weekday_auto_draft(self: Any) -> str:
-    """Prepare three different topics and queue three owner-review drafts on weekdays."""
+    """Queue two owner-review drafts using distinct topics from the owner's pool."""
+    return run_morning_drafts(synchronous=False)
+
+
+def run_morning_drafts(*, synchronous: bool) -> str:
+    """Create the two daily owner-review drafts, with or without Celery/Redis.
+
+    The synchronous path is used by the local management command and invokes the
+    same generation task body directly while bypassing only its Redis lock.
+    """
     today = timezone.localdate()
-    if today.weekday() >= 5:
-        return "not_a_weekday"
     User = get_user_model()
     owner = User.objects.filter(is_active=True, is_superuser=True).order_by("pk").first()
-    queued = 0
+    completed = 0
     failed = 0
-    already_started = 0
+    for run_number in range(1, MORNING_DRAFT_COUNT + 1):
+        with suppress(IntegrityError):
+            ScheduledDraftRun.objects.get_or_create(run_date=today, run_number=run_number)
 
-    for run_number in range(1, WEEKDAY_AUTO_DRAFT_COUNT + 1):
-        try:
-            run, created = ScheduledDraftRun.objects.get_or_create(
-                run_date=today, run_number=run_number
-            )
-        except IntegrityError:
-            already_started += 1
-            continue
-        if not created:
-            already_started += 1
-            continue
+    # Lock today's slots and attach placeholder posts before releasing the
+    # transaction. A concurrent Beat/manual invocation will then see the slots
+    # as already claimed and won't create duplicate drafts.
+    claimed: list[tuple[ScheduledDraftRun, str, LinkedInPost]] = []
+    already_handled = 0
+    with transaction.atomic():
+        runs = list(
+            ScheduledDraftRun.objects.select_for_update()
+            .filter(run_date=today, run_number__lte=MORNING_DRAFT_COUNT)
+            .order_by("run_number")
+        )
+        active_runs = [
+            run
+            for run in runs
+            if run.status == ScheduledDraftRun.Status.SUCCEEDED
+            or (run.status == ScheduledDraftRun.Status.STARTED and run.post_id)
+        ]
+        already_handled = len(active_runs)
+        used_topics = {
+            run.post.source_keyword.casefold()
+            for run in active_runs
+            if run.post is not None and run.post.source_keyword
+        }
+        pending_runs = [
+            run
+            for run in runs
+            if run.status == ScheduledDraftRun.Status.FAILED
+            or (run.status == ScheduledDraftRun.Status.STARTED and not run.post_id)
+        ]
+        if not pending_runs:
+            return f"completed_0_failed_0_already_handled_{already_handled}"
+
         if owner is None:
-            _finish_run(
-                run, ScheduledDraftRun.Status.FAILED, "No active project owner is configured."
-            )
-            failed += 1
-            continue
+            for run in pending_runs:
+                _finish_run(
+                    run,
+                    ScheduledDraftRun.Status.FAILED,
+                    "No active project owner is configured.",
+                )
+            return f"completed_0_failed_{len(pending_runs)}_already_handled_{already_handled}"
 
-        post: LinkedInPost | None = None
-        try:
-            selected = select_topic()
-            topic = ContentTopic.objects.get(pk=selected.topic_id)
-            topic.mark_used()
+        available = list(MorningTopic.objects.order_by("pk").values_list("topic", flat=True))
+        available = [topic for topic in available if topic.casefold() not in used_topics]
+        if len(available) < len(pending_runs):
+            reason = (
+                "Add at least two different morning topics, or more topics if today's drafts have "
+                "already used entries from the pool."
+            )
+            for run in pending_runs:
+                _finish_run(run, ScheduledDraftRun.Status.FAILED, reason, post=run.post)
+            return f"completed_0_failed_{len(pending_runs)}_already_handled_{already_handled}"
+
+        chosen_topics = random.SystemRandom().sample(available, k=len(pending_runs))
+        for run, keyword in zip(pending_runs, chosen_topics, strict=True):
+            run.status = ScheduledDraftRun.Status.STARTED
+            run.error_message = ""
+            run.completed_at = None
+            run.started_at = timezone.now()
             post = LinkedInPost.objects.create(
                 origin=PostOrigin.AUTO,
-                topic=selected.title,
-                content_topic=topic,
-                pillar=ContentPillar.objects.get(slug=selected.pillar_slug),
-                ai_model=selected.model,
+                topic=keyword,
+                source_keyword=keyword,
                 status=PostStatus.DRAFT,
             )
             post = transition_post(post, PostStatus.GENERATING)
             run.post = post
-            run.save(update_fields=["post"])
-            generate_keyword_post.delay(post.pk, owner.pk, topic.pk, run.pk)
-            queued += 1
+            run.save(
+                update_fields=[
+                    "status",
+                    "error_message",
+                    "completed_at",
+                    "started_at",
+                    "post",
+                ]
+            )
+            claimed.append((run, keyword, post))
+
+    for run, _keyword, post in claimed:
+        try:
+            if synchronous:
+                result = generate_keyword_post.run(
+                    post.pk,
+                    owner.pk,
+                    scheduled_run_id=run.pk,
+                    use_cache_lock=False,
+                )
+                if result == "draft_ready_for_owner_review":
+                    completed += 1
+                else:
+                    failed += 1
+            else:
+                generate_keyword_post.delay(post.pk, owner.pk, scheduled_run_id=run.pk)
+                completed += 1
         except Exception as exc:
             reason = (
                 str(exc)
                 if isinstance(exc, DraftGenerationError)
-                else "The scheduled draft could not be prepared or queued. "
-                "Check the worker and AI provider."
+                else "The scheduled draft could not be prepared. Check the database and provider."
             )
             if post and post.status in {PostStatus.GENERATING, PostStatus.REVIEWING}:
                 transition_post(post, PostStatus.FAILED, reason=reason)
             _finish_run(run, ScheduledDraftRun.Status.FAILED, reason, post=post)
             failed += 1
 
-    return f"queued_{queued}_failed_{failed}_already_started_{already_started}"
+    return f"completed_{completed}_failed_{failed}_already_handled_{already_handled}"
 
 
 @shared_task(bind=True, name="posts.recover_stale_work", max_retries=0)

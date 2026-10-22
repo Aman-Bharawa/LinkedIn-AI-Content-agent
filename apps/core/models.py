@@ -9,7 +9,7 @@ from django.db import models
 
 from apps.core.security import redact_secrets
 
-WEEKDAY_AUTO_DRAFT_COUNT = 3
+MORNING_DRAFT_COUNT = 2
 
 
 class TimeStampedModel(models.Model):
@@ -18,6 +18,18 @@ class TimeStampedModel(models.Model):
 
     class Meta:
         abstract = True
+
+
+class MorningTopic(TimeStampedModel):
+    """An owner-provided keyword eligible for a random morning draft."""
+
+    topic = models.CharField(max_length=255, unique=True)
+
+    class Meta:
+        ordering = ["topic"]
+
+    def __str__(self) -> str:
+        return self.topic
 
 
 # Metadata keys that look like they could carry credentials are refused outright.
@@ -52,7 +64,7 @@ class AuditAction(models.TextChoices):
 
 
 class ScheduledDraftRun(models.Model):
-    """One idempotent weekday auto-draft slot per owner-local calendar date."""
+    """One idempotent morning-draft slot per owner-local calendar date."""
 
     class Status(models.TextChoices):
         STARTED = "started", "Started"

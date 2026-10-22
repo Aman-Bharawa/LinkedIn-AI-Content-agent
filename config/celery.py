@@ -10,9 +10,9 @@ app = Celery("linkedin_agent")
 app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()
 app.conf.beat_schedule = {
-    "weekday-owner-auto-draft": {
+    "morning-owner-auto-draft": {
         "task": "posts.create_weekday_auto_draft",
-        "schedule": crontab(minute=0, hour=8, day_of_week="1-5"),
+        "schedule": crontab(minute=0, hour=8),
     },
     "recover-stale-work": {
         "task": "posts.recover_stale_work",

@@ -1,20 +1,23 @@
 from datetime import timedelta
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Prefetch
 from django.http import HttpRequest, HttpResponse, JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from apps.accounts.models import LinkedInAccount, is_owner
 from apps.posts.forms import GeneratePostForm
 from apps.posts.models import LinkedInPost, PostReview, PostStatus
 
 from . import health
-from .models import WEEKDAY_AUTO_DRAFT_COUNT, ScheduledDraftRun
+from .forms import MorningTopicForm
+from .models import MORNING_DRAFT_COUNT, MorningTopic, ScheduledDraftRun
 
 
 @require_GET
@@ -54,6 +57,38 @@ def suggest_topic(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"error": str(exc)}, status=503)
 
 
+@login_required
+@require_http_methods(["GET", "POST"])
+def morning_topics(request: HttpRequest) -> HttpResponse:
+    if not is_owner(request.user):
+        return HttpResponse("Owner access required.", status=403)
+
+    if request.method == "POST":
+        form = MorningTopicForm(request.POST)
+        if form.is_valid():
+            with transaction.atomic():
+                MorningTopic.objects.all().delete()
+                MorningTopic.objects.bulk_create(
+                    [MorningTopic(topic=topic) for topic in form.cleaned_data["topics"]]
+                )
+            messages.success(
+                request,
+                f"Saved {len(form.cleaned_data['topics'])} morning topics. "
+                "The next run will choose two different topics.",
+            )
+            return redirect("core:morning-topics")
+    else:
+        form = MorningTopicForm(
+            initial={"topics": "\n".join(MorningTopic.objects.values_list("topic", flat=True))}
+        )
+
+    return render(
+        request,
+        "core/morning_topics.html",
+        {"form": form, "topic_count": MorningTopic.objects.count()},
+    )
+
+
 @require_GET
 @login_required
 def home(request: HttpRequest) -> HttpResponse:
@@ -89,6 +124,6 @@ def home(request: HttpRequest) -> HttpResponse:
             "linkedin_account": LinkedInAccount.objects.filter(is_active=True).first(),
             "scheduled_runs": ScheduledDraftRun.objects.filter(
                 run_date__gte=timezone.localdate() - timedelta(days=1)
-            ).select_related("post")[:WEEKDAY_AUTO_DRAFT_COUNT],
+            ).select_related("post")[:MORNING_DRAFT_COUNT],
         },
     )

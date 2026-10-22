@@ -53,15 +53,15 @@
       </section>
 
       {% if scheduled_runs %}
-        <section class="mb-4" aria-label="Weekday automatic drafts">
+        <section class="mb-4" aria-label="Morning automatic drafts">
           {% for scheduled_run in scheduled_runs %}
             <div class="alert {% if scheduled_run.status == 'succeeded' %}alert-success{% elif scheduled_run.status == 'failed' %}alert-warning{% else %}alert-info{% endif %}" role="status">
               {% if scheduled_run.status == 'succeeded' and scheduled_run.post %}
-                Weekday idea {{ scheduled_run.run_number }} is ready: <a href="{% url 'posts:detail' scheduled_run.post.pk %}">{{ scheduled_run.post.topic }}</a>. It needs your review before publishing.
+                Morning draft {{ scheduled_run.run_number }} is ready: <a href="{% url 'posts:detail' scheduled_run.post.pk %}">{{ scheduled_run.post.topic }}</a>. It needs your review before publishing.
               {% elif scheduled_run.status == 'failed' %}
-                Weekday idea {{ scheduled_run.run_number }} did not complete: {{ scheduled_run.error_message }}
+                Morning draft {{ scheduled_run.run_number }} did not complete: {{ scheduled_run.error_message }}
               {% else %}
-                Weekday idea {{ scheduled_run.run_number }} is being prepared.
+                Morning draft {{ scheduled_run.run_number }} is being prepared.
               {% endif %}
             </div>
           {% endfor %}

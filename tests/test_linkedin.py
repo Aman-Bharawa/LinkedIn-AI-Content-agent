@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from apps.accounts.models import LinkedInAccount
 from apps.content.models import ContentTopic
-from apps.core.models import ScheduledDraftRun
+from apps.core.models import MorningTopic, ScheduledDraftRun
 from apps.linkedin.services import LinkedInAmbiguousError, OAuthToken
 from apps.linkedin.tasks import publish_approved_post
 from apps.posts.models import (
@@ -139,7 +139,7 @@ def test_expired_linkedin_account_is_not_used(owner, post, account):
 
 
 @pytest.mark.django_db
-def test_weekday_scheduler_creates_only_one_auto_draft_per_local_date(owner, pillar, settings):
+def test_morning_scheduler_uses_two_distinct_owner_topics_once_per_date(owner, pillar, settings):
     from apps.ai.services import ReviewResult
 
     settings.GEMINI_API_KEY = "test-key"
@@ -175,21 +175,30 @@ def test_weekday_scheduler_creates_only_one_auto_draft_per_local_date(owner, pil
     )
     topic = ContentTopic.objects.create(title="An auto topic", pillar=pillar)
     draft.content_topic_id = topic.pk
+    MorningTopic.objects.bulk_create(
+        [MorningTopic(topic="AI in product design"), MorningTopic(topic="C++ performance")]
+    )
     with (
         mock.patch("apps.posts.tasks.timezone.localdate", return_value=date(2026, 10, 15)),
-        mock.patch("apps.posts.tasks.generate_linkedin_draft", return_value=draft),
+        mock.patch("apps.posts.tasks.generate_linkedin_draft", return_value=draft) as generate,
         mock.patch("apps.posts.tasks.review_linkedin_post", return_value=review),
     ):
         first = create_weekday_auto_draft.run()
         second = create_weekday_auto_draft.run()
 
-    post = LinkedInPost.objects.get(origin="auto")
-    assert first == "draft_ready_for_owner_review"
-    assert second == "already_succeeded"
-    assert post.origin == "auto"
-    assert post.status == PostStatus.NEEDS_MANUAL_REVIEW
-    assert ScheduledDraftRun.objects.count() == 1
-    assert ScheduledDraftRun.objects.get().status == ScheduledDraftRun.Status.SUCCEEDED
+    posts = list(LinkedInPost.objects.filter(origin="auto").order_by("source_keyword"))
+    assert first == "completed_2_failed_0_already_handled_0"
+    assert second == "completed_0_failed_0_already_handled_2"
+    assert {post.source_keyword for post in posts} == {
+        "AI in product design",
+        "C++ performance",
+    }
+    assert all(post.status == PostStatus.NEEDS_MANUAL_REVIEW for post in posts)
+    assert generate.call_count == 2
+    assert ScheduledDraftRun.objects.count() == 2
+    assert all(
+        run.status == ScheduledDraftRun.Status.SUCCEEDED for run in ScheduledDraftRun.objects.all()
+    )
 
 
 @pytest.mark.django_db

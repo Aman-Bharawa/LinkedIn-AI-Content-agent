@@ -35,7 +35,10 @@ Never pass the client secret or access token to a user-facing page or log.
 6. Verify `/health/` and `/health/ready/`, owner login, a generated draft, and a worker task. Do
    not use a real publish action as a deployment smoke test; verify publishing with a mock first.
 7. Confirm approval requires a future publication time and the detail page offers reschedule/cancel
-   before publishing starts. The weekday 08:00 Beat task still queues three drafts for review only.
+   before publishing starts. The 08:00 Beat task queues two drafts from the owner's topic pool for
+   review only. On Windows, the same generation can run locally without Beat or Redis using
+   `DJANGO_SETTINGS_MODULE=config.settings.prod python manage.py generate_morning_drafts`; see the
+   README for the Task Scheduler setup and network requirements.
 
 The Compose `web` command runs migrations for the single-instance local stack. For production or
 multiple web replicas, use the one-off release migration above and override the Compose web
