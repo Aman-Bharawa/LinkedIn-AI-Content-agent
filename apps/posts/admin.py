@@ -68,9 +68,6 @@ class PostVersionAdmin(admin.ModelAdmin):
     def has_change_permission(self, request: HttpRequest, obj: object = None) -> bool:
         return False
 
-    def has_delete_permission(self, request: HttpRequest, obj: object = None) -> bool:
-        return False
-
 
 @admin.register(PostPublication)
 class PostPublicationAdmin(admin.ModelAdmin):
