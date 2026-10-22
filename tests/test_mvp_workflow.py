@@ -1,5 +1,4 @@
 import json
-from datetime import timedelta
 from unittest import mock
 
 import pytest
@@ -14,7 +13,13 @@ from apps.ai.services import (
     generate_linkedin_draft,
 )
 from apps.content.models import ContentTopic
-from apps.posts.models import LinkedInPost, PostStatus, PostVersion, VersionKind
+from apps.posts.models import (
+    LinkedInPost,
+    PostStatus,
+    PostVersion,
+    PublicationScheduleSettings,
+    VersionKind,
+)
 
 
 def generated_draft(*, content_topic_id: int | None = None) -> GeneratedDraft:
@@ -122,15 +127,18 @@ def test_owner_can_edit_then_approve_post_with_original_preserved(client, owner,
         VersionKind.OWNER_EDIT,
     ]
 
-    scheduled_for = timezone.localtime(timezone.now() + timedelta(hours=2))
     response = client.post(
         reverse("posts:approve", args=[post.pk]),
-        {"scheduled_for": scheduled_for.strftime("%Y-%m-%dT%H:%M")},
+        {},
     )
     assert response.status_code == 302
     post.refresh_from_db()
     assert post.status == PostStatus.APPROVED
     assert post.approved_by == owner
+    assert post.scheduled_for is not None
+    schedule = PublicationScheduleSettings.get_solo()
+    scheduled_local = timezone.localtime(post.scheduled_for)
+    assert schedule.window_start <= scheduled_local.time() <= schedule.window_end
 
 
 @pytest.mark.django_db
