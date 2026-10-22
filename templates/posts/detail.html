@@ -41,9 +41,9 @@
       {% if can_schedule %}
         <form method="post" action="{% url 'posts:schedule' post.pk %}" class="card card-body mt-3 mb-5">
           {% csrf_token %}
-          <label class="form-label fw-semibold" for="id_scheduled_for">Publish at ({{ display_timezone }})</label>
+          <label class="form-label fw-semibold" for="id_scheduled_for">Assigned publish time ({{ display_timezone }})</label>
           {{ schedule_form.scheduled_for }}
-          <div class="form-text">The post will be sent to LinkedIn automatically at this time. You can change the schedule before it starts publishing.</div>
+          <div class="form-text">The post will be sent to LinkedIn automatically at this time. You can edit this time before publishing starts.</div>
           <button class="btn btn-primary align-self-start mt-3" type="submit">{% if post.scheduled_for %}Update schedule{% else %}Schedule approved post{% endif %}</button>
         </form>
         {% if post.scheduled_for and not post.publication_queued_at %}
@@ -99,11 +99,25 @@
       {% endif %}
 
       {% if can_review %}
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-5">
+        <div class="d-flex flex-wrap align-items-start gap-4 mb-5">
           <form method="post" action="{% url 'posts:approve' post.pk %}">
             {% csrf_token %}
-            <label class="form-label fw-semibold" for="id_scheduled_for">Approve and publish at ({{ display_timezone }})</label>
-            {{ schedule_form.scheduled_for }}
+            <h2 class="h5">Approve and choose a publishing window</h2>
+            <p class="text-secondary">We’ll pick a random time inside this window. You can review and edit the assigned time afterward. Times use {{ display_timezone }}.</p>
+            <div class="mb-3">
+              <label class="form-label fw-semibold" for="id_publish_date">{{ approval_form.publish_date.label }}</label>
+              {{ approval_form.publish_date }}
+            </div>
+            <div class="row g-3">
+              <div class="col-sm-6">
+                <label class="form-label fw-semibold" for="id_window_start">{{ approval_form.window_start.label }}</label>
+                {{ approval_form.window_start }}
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label fw-semibold" for="id_window_end">{{ approval_form.window_end.label }}</label>
+                {{ approval_form.window_end }}
+              </div>
+            </div>
             <button type="submit" class="btn btn-success btn-lg mt-2">Approve and schedule</button>
           </form>
           <form method="post" action="{% url 'posts:reject' post.pk %}" class="d-flex gap-2">

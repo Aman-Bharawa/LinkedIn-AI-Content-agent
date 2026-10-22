@@ -13,7 +13,12 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from apps.accounts.models import is_owner
 from apps.core.models import AuditAction, AuditEvent
 
-from .forms import GeneratePostForm, PostEditForm, SchedulePublicationForm
+from .forms import (
+    ApprovalPublicationForm,
+    GeneratePostForm,
+    PostEditForm,
+    SchedulePublicationForm,
+)
 from .models import (
     MAX_GENERATION_ATTEMPTS,
     LinkedInPost,
@@ -177,6 +182,7 @@ def post_detail(request: HttpRequest, post_id: int) -> HttpResponse:
             "can_review": post.status in QUEUE_STATUSES,
             "can_schedule": post.status == PostStatus.APPROVED,
             "schedule_form": SchedulePublicationForm(initial={"scheduled_for": post.scheduled_for}),
+            "approval_form": ApprovalPublicationForm(),
             "display_timezone": timezone.get_current_timezone_name(),
         },
     )
@@ -186,14 +192,18 @@ def post_detail(request: HttpRequest, post_id: int) -> HttpResponse:
 @require_POST
 def approve_post(request: HttpRequest, post_id: int) -> HttpResponse:
     post = get_object_or_404(LinkedInPost, pk=post_id)
-    form = SchedulePublicationForm(request.POST)
+    form = ApprovalPublicationForm(request.POST)
     if not form.is_valid():
-        messages.error(request, "Choose a valid future date and time to schedule this post.")
+        messages.error(request, "Choose a valid date and a window with future publishing times.")
         return redirect("posts:detail", post_id=post.pk)
+    scheduled_for = form.cleaned_data["scheduled_for"]
+    publish_date = form.cleaned_data["publish_date"]
+    window_start = form.cleaned_data["window_start"]
+    window_end = form.cleaned_data["window_end"]
     try:
         with transaction.atomic():
             post = transition_post(post, PostStatus.APPROVED, actor=request.user)
-            post.scheduled_for = form.cleaned_data["scheduled_for"]
+            post.scheduled_for = scheduled_for
             post.publication_queued_at = None
             post.save(update_fields=["scheduled_for", "publication_queued_at", "updated_at"])
             AuditEvent.objects.create(
@@ -202,7 +212,12 @@ def approve_post(request: HttpRequest, post_id: int) -> HttpResponse:
                 post=post,
                 from_status=PostStatus.APPROVED,
                 to_status=PostStatus.APPROVED,
-                metadata={"scheduled_for": post.scheduled_for.isoformat()},
+                metadata={
+                    "scheduled_for": post.scheduled_for.isoformat(),
+                    "publish_date": publish_date.isoformat(),
+                    "window_start": window_start.isoformat(timespec="minutes"),
+                    "window_end": window_end.isoformat(timespec="minutes"),
+                },
             )
     except InvalidTransition:
         messages.error(request, "This post is no longer waiting for owner approval.")

@@ -132,6 +132,7 @@ def home(request: HttpRequest) -> HttpResponse:
             "status_choices": [("all", "All statuses"), *PostStatus.choices],
             "selected_status": selected_status,
             "search_term": search_term,
+            "display_timezone": timezone.get_current_timezone_name(),
             "linkedin_account": LinkedInAccount.objects.filter(is_active=True).first(),
             "scheduled_runs": ScheduledDraftRun.objects.filter(
                 run_date__gte=timezone.localdate() - timedelta(days=1)
