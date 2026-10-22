@@ -128,8 +128,9 @@ Each draft receives one generated version and a structured quality review. The d
 to the owner for manual review, even when the AI review flags quality issues; the owner can use
 the explicit Regenerate action to request another version, within the three-attempt lifetime cap.
 AI review never approves or publishes. The morning job creates two separate drafts from the saved
-topic pool. Edit the pool from **Morning topics** in the navigation; enter one topic per line and
-save at least two different topics.
+topic pool. Manage the list from **Morning topics** in the navigation: add topics individually or
+remove them one at a time. Keep at least two topics in the pool so the morning job can choose two
+different ones.
 
 ### Run the morning job without Celery or Redis
 
@@ -147,6 +148,18 @@ environment values (including Gemini key and token encryption key) must be confi
 The command is idempotent for the day: it won't create duplicate drafts for slots already running
 or completed. It prints the outcome; the log wrapper stores output under
 `%LOCALAPPDATA%\LinkedInAIContentAgent\logs\morning-drafts.log`.
+
+To rehearse it immediately with a database/topic check and a confirmation prompt, run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\test_morning_drafts.ps1"
+```
+
+Type `RUN` when prompted. The script shows the database host, saved topics, and today's slot state,
+then creates drafts synchronously and prints each result. To have those drafts appear on Render,
+the local `.env` must point to the same Render PostgreSQL database used by the web app, and that
+database must allow your laptop's IP. This rehearsal uses Gemini credits/quota but does not publish.
+The lower-level Task Scheduler wrapper, `scripts/run_morning_drafts.ps1`, runs without a prompt.
 
 To run it every day at 8:00 a.m. without Celery services, create a Windows Task Scheduler task:
 
