@@ -12,7 +12,12 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from apps.accounts.models import LinkedInAccount, is_owner
 from apps.posts.forms import GeneratePostForm
-from apps.posts.models import LinkedInPost, PostReview, PostStatus
+from apps.posts.models import (
+    LinkedInPost,
+    PostReview,
+    PostStatus,
+    PublicationScheduleSettings,
+)
 
 from . import health
 from .forms import MorningTopicForm
@@ -133,6 +138,7 @@ def home(request: HttpRequest) -> HttpResponse:
             "selected_status": selected_status,
             "search_term": search_term,
             "display_timezone": timezone.get_current_timezone_name(),
+            "publication_settings": PublicationScheduleSettings.get_solo(),
             "linkedin_account": LinkedInAccount.objects.filter(is_active=True).first(),
             "scheduled_runs": ScheduledDraftRun.objects.filter(
                 run_date__gte=timezone.localdate() - timedelta(days=1)

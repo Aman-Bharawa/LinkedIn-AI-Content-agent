@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Publishing window · LinkedIn AI Content Agent{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <a href="{% url 'core:home' %}" class="text-decoration-none">← Back to drafts</a>
+      <section class="card card-body mt-3 mb-4">
+        <p class="eyebrow text-primary mb-2">AUTOMATIC PUBLISHING</p>
+        <h1 class="h2">Daily publishing window</h1>
+        <p class="text-secondary">Set one shared time window for every approved post. The queue picks a random time inside it and schedules at most one post per day, in approval order. Dates are assigned automatically. Times use {{ display_timezone }}.</p>
+        <form method="post" class="mt-2">
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <label class="form-label fw-semibold" for="id_window_start">Window starts</label>
+              {{ form.window_start }}
+              {% for error in form.window_start.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label fw-semibold" for="id_window_end">Window ends</label>
+              {{ form.window_end }}
+              {% for error in form.window_end.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+          </div>
+          {% for error in form.non_field_errors %}<div class="text-danger small mt-2">{{ error }}</div>{% endfor %}
+          <button class="btn btn-primary mt-3" type="submit">Save daily window</button>
+        </form>
+      </section>
+
+      <section class="card card-body" aria-labelledby="queue-heading">
+        <h2 id="queue-heading" class="h4">Approved queue</h2>
+        <p class="text-secondary">Each listed post has its assigned publishing day and random time. Only the first due post is sent to LinkedIn; the next waits for its day.</p>
+        <ol class="list-group list-group-numbered list-group-flush">
+          {% for post in queued_posts %}
+            <li class="list-group-item d-flex justify-content-between gap-3">
+              <a href="{% url 'posts:detail' post.pk %}">{{ post.topic|default:"Untitled draft" }}</a>
+              <span class="text-secondary text-nowrap">{{ post.scheduled_for|date:"M j, Y, g:i a" }} ({{ display_timezone }})</span>
+            </li>
+          {% empty %}
+            <li class="list-group-item text-secondary">No approved posts are waiting in the queue.</li>
+          {% endfor %}
+        </ol>
+      </section>
+    </div>
+  </div>
+{% endblock %}

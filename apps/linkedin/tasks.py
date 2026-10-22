@@ -19,6 +19,7 @@ from apps.posts.models import (
     PublicationStatus,
     VersionKind,
 )
+from apps.posts.scheduling import refresh_publication_queue
 from apps.posts.state import InvalidTransition, transition_post
 
 from .services import (
@@ -32,6 +33,7 @@ from .services import (
 @shared_task(bind=True, name="linkedin.enqueue_due_publications", max_retries=0)
 def enqueue_due_publications(self: Any) -> str:
     """Queue due, owner-approved posts for the existing guarded publisher task."""
+    refresh_publication_queue()
     account = LinkedInAccount.objects.filter(is_active=True).first()
     if account is None or account.is_access_token_expired():
         return "linkedin_account_unavailable"
@@ -41,6 +43,11 @@ def enqueue_due_publications(self: Any) -> str:
     now = timezone.now()
     if PostPublication.objects.filter(status__in=ACTIVE_PUBLICATION_STATUSES).exists():
         return "another_publication_is_active"
+    if LinkedInPost.objects.filter(
+        status=PostStatus.APPROVED,
+        publication_queued_at__isnull=False,
+    ).exists():
+        return "a_publication_is_already_dispatched"
     due_ids = list(
         LinkedInPost.objects.filter(
             status=PostStatus.APPROVED,

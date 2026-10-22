@@ -116,10 +116,12 @@ and stores a strategy-backed, nonduplicate topic, then asks Gemini to write the 
 topic using verified knowledge, approved examples, and recent posts. The draft enters the manual
 review queue.
 The owner can edit, approve, or reject it; edits are versioned and the original AI output is kept.
-When approving, the owner chooses a date and a start/end time window. The app randomly assigns a
-future time within that window and displays it in the drafts list and post detail page. The owner
-can edit or cancel the assigned time before publishing starts. Beat queues the approved post, and
-the worker publishes it through LinkedIn's official API when due.
+The owner configures one shared daily publishing window from the **Publishing window** page.
+Approval puts a post into the queue without asking for a date or time. The app assigns a random
+time in that window and schedules at most one approved post per day, in approval order. Assigned
+days and times appear in the drafts list and post detail page. The owner can edit the time within
+the shared window or return a post to review before publishing starts. Beat queues the due post,
+and the worker publishes it through LinkedIn's official API.
 At 08:00 daily in the configured owner timezone, Beat queues two drafts using different topics
 from the owner's **Morning topics** list. Scheduled jobs create drafts only. Before using live
 generation, set `GEMINI_API_KEY` in the ignored `.env` file. `GEMINI_MODEL` defaults to

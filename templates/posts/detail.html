@@ -27,10 +27,10 @@
         </div>
       {% elif post.status == 'approved' %}
         {% if post.scheduled_for %}
-          <div class="alert alert-success" role="status">Approved and queued to publish automatically on {{ post.scheduled_for|date:"M j, Y, g:i a" }} ({{ display_timezone }}).</div>
+          <div class="alert alert-success" role="status">Approved and queued for {{ post.scheduled_for|date:"M j, Y, g:i a" }} ({{ display_timezone }}). The queue publishes at most one post per day in approval order.</div>
           {% if post.last_error %}<div class="alert alert-warning" role="alert">Scheduled publishing needs attention: {{ post.last_error }}</div>{% endif %}
         {% else %}
-          <div class="alert alert-warning" role="status">This post is approved but not scheduled. Choose a time to add it to the publishing queue.</div>
+          <div class="alert alert-warning" role="status">This post is approved and waiting for the queue to assign its daily publishing slot.</div>
         {% endif %}
       {% elif post.status == 'failed' %}
         <div class="alert alert-danger" role="alert">{{ post.last_error }}</div>
@@ -41,15 +41,15 @@
       {% if can_schedule %}
         <form method="post" action="{% url 'posts:schedule' post.pk %}" class="card card-body mt-3 mb-5">
           {% csrf_token %}
-          <label class="form-label fw-semibold" for="id_scheduled_for">Assigned publish time ({{ display_timezone }})</label>
-          {{ schedule_form.scheduled_for }}
-          <div class="form-text">The post will be sent to LinkedIn automatically at this time. You can edit this time before publishing starts.</div>
-          <button class="btn btn-primary align-self-start mt-3" type="submit">{% if post.scheduled_for %}Update schedule{% else %}Schedule approved post{% endif %}</button>
+          <label class="form-label fw-semibold" for="id_publish_time">Edit time on {{ post.scheduled_for|date:"M j, Y" }} ({{ display_timezone }})</label>
+          {{ schedule_form.publish_time }}
+          <div class="form-text">Choose a time inside the shared window ({{ publication_settings.window_start|time:"g:i A" }}–{{ publication_settings.window_end|time:"g:i A" }}). The queue date stays assigned and one post is scheduled per day.</div>
+          <button class="btn btn-primary align-self-start mt-3" type="submit">Update publish time</button>
         </form>
         {% if post.scheduled_for and not post.publication_queued_at %}
           <form method="post" action="{% url 'posts:cancel-schedule' post.pk %}" class="mb-5">
             {% csrf_token %}
-            <button class="btn btn-outline-danger" type="submit">Cancel scheduled post</button>
+            <button class="btn btn-outline-danger" type="submit">Return to review</button>
           </form>
         {% endif %}
       {% endif %}
@@ -102,23 +102,9 @@
         <div class="d-flex flex-wrap align-items-start gap-4 mb-5">
           <form method="post" action="{% url 'posts:approve' post.pk %}">
             {% csrf_token %}
-            <h2 class="h5">Approve and choose a publishing window</h2>
-            <p class="text-secondary">We’ll pick a random time inside this window. You can review and edit the assigned time afterward. Times use {{ display_timezone }}.</p>
-            <div class="mb-3">
-              <label class="form-label fw-semibold" for="id_publish_date">{{ approval_form.publish_date.label }}</label>
-              {{ approval_form.publish_date }}
-            </div>
-            <div class="row g-3">
-              <div class="col-sm-6">
-                <label class="form-label fw-semibold" for="id_window_start">{{ approval_form.window_start.label }}</label>
-                {{ approval_form.window_start }}
-              </div>
-              <div class="col-sm-6">
-                <label class="form-label fw-semibold" for="id_window_end">{{ approval_form.window_end.label }}</label>
-                {{ approval_form.window_end }}
-              </div>
-            </div>
-            <button type="submit" class="btn btn-success btn-lg mt-2">Approve and schedule</button>
+            <h2 class="h5">Approve and add to the queue</h2>
+            <p class="text-secondary">The shared window is {{ publication_settings.window_start|time:"g:i A" }}–{{ publication_settings.window_end|time:"g:i A" }} ({{ display_timezone }}). The app assigns a random time and publishes at most one approved post per day.</p>
+            <button type="submit" class="btn btn-success btn-lg mt-2">Approve and queue</button>
           </form>
           <form method="post" action="{% url 'posts:reject' post.pk %}" class="d-flex gap-2">
             {% csrf_token %}

@@ -1,7 +1,24 @@
 from django.contrib import admin
 from django.http import HttpRequest
 
-from .models import LinkedInPost, PostPublication, PostReview, PostVersion
+from .models import (
+    LinkedInPost,
+    PostPublication,
+    PostReview,
+    PostVersion,
+    PublicationScheduleSettings,
+)
+
+
+@admin.register(PublicationScheduleSettings)
+class PublicationScheduleSettingsAdmin(admin.ModelAdmin):
+    list_display = ("window_start", "window_end", "updated_at")
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return not PublicationScheduleSettings.objects.exists()
+
+    def has_delete_permission(self, request: HttpRequest, obj: object = None) -> bool:
+        return False
 
 
 class ReadOnlyInline(admin.TabularInline):

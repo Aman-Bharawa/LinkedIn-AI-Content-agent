@@ -10,6 +10,7 @@ urlpatterns = [
     path("<int:post_id>/", views.post_detail, name="detail"),
     path("<int:post_id>/edit/", views.edit_post, name="edit"),
     path("<int:post_id>/approve/", views.approve_post, name="approve"),
+    path("publishing-window/", views.publication_window, name="publication-window"),
     path("<int:post_id>/schedule/", views.schedule_post, name="schedule"),
     path("<int:post_id>/cancel-schedule/", views.cancel_schedule, name="cancel-schedule"),
     path("<int:post_id>/reject/", views.reject_post, name="reject"),

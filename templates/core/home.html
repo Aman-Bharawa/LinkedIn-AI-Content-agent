@@ -52,6 +52,11 @@
         </div>
       </section>
 
+      <section class="alert alert-secondary d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4" aria-label="Publishing queue settings">
+        <span>Daily queue: one post per day, random time from {{ publication_settings.window_start|time:"g:i A" }} to {{ publication_settings.window_end|time:"g:i A" }} ({{ display_timezone }}).</span>
+        <a href="{% url 'posts:publication-window' %}">Edit publishing window</a>
+      </section>
+
       {% if scheduled_runs %}
         <section class="mb-4" aria-label="Morning automatic drafts">
           {% for scheduled_run in scheduled_runs %}

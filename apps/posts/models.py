@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from datetime import time
 from typing import Any
 
 from django.conf import settings
@@ -35,6 +36,41 @@ class PostStatus(models.TextChoices):
     PUBLISHED = "published", "Published"
     FAILED = "failed", "Failed"
     NEEDS_MANUAL_REVIEW = "needs_manual_review", "Needs manual review"
+
+
+class PublicationScheduleSettings(TimeStampedModel):
+    """One owner-wide daily window for the automatic publishing queue."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    window_start = models.TimeField(default=time(9, 0))
+    window_end = models.TimeField(default=time(17, 0))
+
+    class Meta:
+        verbose_name = "publication schedule"
+        verbose_name_plural = "publication schedule"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(window_start__lt=models.F("window_end")),
+                name="publication_window_start_before_end",
+            ),
+        ]
+
+    def clean(self) -> None:
+        super().clean()
+        if (
+            self.window_start is not None
+            and self.window_end is not None
+            and self.window_start >= self.window_end
+        ):
+            raise ValidationError({"window_end": "The end time must be after the start time."})
+
+    @classmethod
+    def get_solo(cls) -> PublicationScheduleSettings:
+        settings, _ = cls.objects.get_or_create(pk=1)
+        return settings
+
+    def __str__(self) -> str:
+        return f"Daily publishing window {self.window_start:%H:%M}-{self.window_end:%H:%M}"
 
 
 class PostOrigin(models.TextChoices):
