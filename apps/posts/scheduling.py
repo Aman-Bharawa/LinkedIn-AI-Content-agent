@@ -7,6 +7,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import (
+    ACTIVE_PUBLICATION_STATUSES,
     LinkedInPost,
     PostPublication,
     PostStatus,
@@ -74,6 +75,8 @@ def refresh_publication_queue() -> int:
             "started_at", flat=True
         )
     )
+    if PostPublication.objects.filter(status__in=ACTIVE_PUBLICATION_STATUSES).exists():
+        occupied_days.add(today)
 
     posts = list(
         LinkedInPost.objects.select_for_update()
