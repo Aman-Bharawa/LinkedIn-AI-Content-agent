@@ -3,7 +3,6 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db import transaction
 from django.db.models import Prefetch
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
@@ -63,29 +62,41 @@ def morning_topics(request: HttpRequest) -> HttpResponse:
     if not is_owner(request.user):
         return HttpResponse("Owner access required.", status=403)
 
+    if request.method == "POST" and "delete_topic" in request.POST:
+        try:
+            topic_id = int(request.POST.get("delete_topic", ""))
+        except (TypeError, ValueError):
+            topic_id = None
+        deleted, _ = MorningTopic.objects.filter(pk=topic_id).delete() if topic_id else (0, {})
+        if deleted:
+            messages.success(request, "Removed the topic from your morning list.")
+        else:
+            messages.error(request, "That topic was already removed or does not exist.")
+        return redirect("core:morning-topics")
+
     if request.method == "POST":
         form = MorningTopicForm(request.POST)
         if form.is_valid():
-            with transaction.atomic():
-                MorningTopic.objects.all().delete()
-                MorningTopic.objects.bulk_create(
-                    [MorningTopic(topic=topic) for topic in form.cleaned_data["topics"]]
-                )
-            messages.success(
-                request,
-                f"Saved {len(form.cleaned_data['topics'])} morning topics. "
-                "The next run will choose two different topics.",
-            )
-            return redirect("core:morning-topics")
+            topic = form.cleaned_data["topic"]
+            if MorningTopic.objects.filter(topic__iexact=topic).exists():
+                form.add_error("topic", "That topic is already in your list.")
+            elif MorningTopic.objects.count() >= 50:
+                form.add_error("topic", "You can save up to 50 topics.")
+            else:
+                MorningTopic.objects.create(topic=topic)
+                messages.success(request, f"Added “{topic}” to your morning topic list.")
+                return redirect("core:morning-topics")
     else:
-        form = MorningTopicForm(
-            initial={"topics": "\n".join(MorningTopic.objects.values_list("topic", flat=True))}
-        )
+        form = MorningTopicForm()
 
     return render(
         request,
         "core/morning_topics.html",
-        {"form": form, "topic_count": MorningTopic.objects.count()},
+        {
+            "form": form,
+            "topics": MorningTopic.objects.all(),
+            "topic_count": MorningTopic.objects.count(),
+        },
     )
 
 

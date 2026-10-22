@@ -8,26 +8,61 @@
       <div>
         <p class="eyebrow text-primary mb-2">DAILY DRAFT QUEUE</p>
         <h1 id="morning-topics-heading">Morning topics</h1>
-        <p class="text-secondary mb-0">Give the agent a topic pool. Each morning it picks two different topics and prepares drafts for your review.</p>
+        <p class="text-secondary mb-0">Build a pool of ideas. Each morning the agent picks two different topics and prepares drafts for your review.</p>
       </div>
     </div>
     <div class="composer-body">
       <div class="alert alert-info" role="note">
-        The automatic run is scheduled for 8:00 a.m. in your configured owner timezone. It creates drafts only; nothing is approved or published automatically.
-        <strong>{{ topic_count }}</strong> topic{{ topic_count|pluralize }} saved.
+        The run is scheduled for 8:00 a.m. in your configured owner timezone. It creates drafts only; nothing is approved or published automatically.
+        <strong>{{ topic_count }}</strong> / 50 topics saved.
       </div>
-      <form method="post">
-        {% csrf_token %}
-        {% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
-        <label class="form-label fw-medium" for="{{ form.topics.id_for_label }}">{{ form.topics.label }}</label>
-        {{ form.topics }}
-        <div class="form-text mb-3">{{ form.topics.help_text }}</div>
-        {% for error in form.topics.errors %}<div class="text-danger small mb-2">{{ error }}</div>{% endfor %}
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
-          <a class="btn btn-outline-secondary" href="{% url 'core:home' %}">Back to drafts</a>
-          <button class="btn btn-generate" type="submit">Save topics</button>
+
+      {% if topic_count < 2 %}
+        <div class="alert alert-warning" role="status">Add at least two topics to enable the morning draft run. It selects two different topics each day.</div>
+      {% endif %}
+
+      <section class="mb-4" aria-labelledby="add-topic-heading">
+        <h2 class="h6 mb-3" id="add-topic-heading">Add a topic</h2>
+        {% if topic_count < 50 %}
+          <form method="post" class="topic-add-form">
+            {% csrf_token %}
+            <div class="flex-grow-1">
+              <label class="form-label fw-medium" for="{{ form.topic.id_for_label }}">{{ form.topic.label }}</label>
+              {{ form.topic }}
+              {% for error in form.topic.errors %}<div class="text-danger small mt-2" role="alert">{{ error }}</div>{% endfor %}
+            </div>
+            <button class="btn btn-generate" type="submit">Add topic</button>
+          </form>
+        {% else %}
+          <p class="text-secondary small mb-0">You have reached the 50 topic limit. Remove a topic before adding another.</p>
+        {% endif %}
+      </section>
+
+      <section aria-labelledby="saved-topics-heading">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h2 class="h6 mb-0" id="saved-topics-heading">Your saved topics</h2>
+          <span class="text-secondary small">Topics are used as generation keywords</span>
         </div>
-      </form>
+        {% if topics %}
+          <ul class="morning-topic-list list-unstyled mb-0">
+            {% for topic in topics %}
+              <li class="morning-topic-item">
+                <span>{{ topic.topic }}</span>
+                <form method="post" class="m-0" onsubmit="return confirm('Remove this topic from your morning list?');">
+                  {% csrf_token %}
+                  <button class="btn btn-topic-remove" type="submit" name="delete_topic" value="{{ topic.pk }}" aria-label="Remove {{ topic.topic }}">Remove</button>
+                </form>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="topic-empty-state">No topics saved yet. Add the first one above.</div>
+        {% endif %}
+      </section>
+
+      <div class="d-flex justify-content-end mt-4">
+        <a class="btn btn-outline-secondary" href="{% url 'core:home' %}">Back to drafts</a>
+      </div>
     </div>
   </section>
 {% endblock %}
