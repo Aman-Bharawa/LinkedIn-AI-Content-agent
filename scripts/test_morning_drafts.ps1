@@ -24,7 +24,7 @@ connection.ensure_connection()
 topics = list(MorningTopic.objects.order_by("topic").values_list("topic", flat=True))
 owner_exists = get_user_model().objects.filter(is_active=True, is_superuser=True).exists()
 today = timezone.localdate()
-runs = list(ScheduledDraftRun.objects.filter(run_date=today).order_by("run_number"))
+runs = list(ScheduledDraftRun.objects.filter(run_date=today).select_related("post").order_by("run_number"))
 print(f"Database: {connection.settings_dict['NAME']} @ {connection.settings_dict['HOST']}")
 print(f"Owner account configured: {'yes' if owner_exists else 'no'}")
 print(f"Saved topic pool: {len(topics)} / 50")
@@ -42,7 +42,7 @@ if len(topics) < MORNING_DRAFT_COUNT:
     print("ERROR: Add at least two different topics on the Morning topics page first.")
     sys.exit(2)
 if len(runs) >= MORNING_DRAFT_COUNT and all(
-    run.status == ScheduledDraftRun.Status.SUCCEEDED
+    (run.status == ScheduledDraftRun.Status.SUCCEEDED and run.post_id)
     or (run.status == ScheduledDraftRun.Status.STARTED and run.post_id)
     for run in runs[:MORNING_DRAFT_COUNT]
 ):

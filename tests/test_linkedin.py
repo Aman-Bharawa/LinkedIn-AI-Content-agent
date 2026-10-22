@@ -209,6 +209,24 @@ def test_morning_scheduler_uses_two_distinct_owner_topics_once_per_date(owner, p
         run.status == ScheduledDraftRun.Status.SUCCEEDED for run in ScheduledDraftRun.objects.all()
     )
 
+    # Removing a post in Django Admin sets the slot's post FK to NULL. A later
+    # explicit run should treat those successful-but-empty slots as missing.
+    for post in posts:
+        post.delete()
+
+    with (
+        mock.patch("apps.posts.tasks.timezone.localdate", return_value=date(2026, 10, 15)),
+        mock.patch(
+            "apps.posts.tasks.generate_linkedin_draft", return_value=draft
+        ) as retry_generate,
+        mock.patch("apps.posts.tasks.review_linkedin_post", return_value=review),
+    ):
+        retried = create_weekday_auto_draft.run()
+
+    assert retried == "completed_2_failed_0_already_handled_0"
+    assert retry_generate.call_count == 2
+    assert LinkedInPost.objects.filter(origin="auto").count() == 2
+
 
 @pytest.mark.django_db
 def test_recovery_marks_stale_generation_failed(post):

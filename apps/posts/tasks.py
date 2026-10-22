@@ -308,7 +308,7 @@ def run_morning_drafts(*, synchronous: bool) -> str:
         active_runs = [
             run
             for run in runs
-            if run.status == ScheduledDraftRun.Status.SUCCEEDED
+            if (run.status == ScheduledDraftRun.Status.SUCCEEDED and run.post_id)
             or (run.status == ScheduledDraftRun.Status.STARTED and run.post_id)
         ]
         already_handled = len(active_runs)
@@ -321,6 +321,7 @@ def run_morning_drafts(*, synchronous: bool) -> str:
             run
             for run in runs
             if run.status == ScheduledDraftRun.Status.FAILED
+            or (run.status == ScheduledDraftRun.Status.SUCCEEDED and not run.post_id)
             or (run.status == ScheduledDraftRun.Status.STARTED and not run.post_id)
         ]
         if not pending_runs:
