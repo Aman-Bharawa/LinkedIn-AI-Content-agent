@@ -81,20 +81,54 @@ from django.utils import timezone
 from apps.core.models import ScheduledDraftRun
 
 today = timezone.localdate()
-for run in ScheduledDraftRun.objects.filter(run_date=today).select_related("post").order_by("run_number"):
+failed_count = 0
+runs = ScheduledDraftRun.objects.filter(run_date=today).select_related("post").order_by("run_number")
+for run in runs:
+    if run.status == ScheduledDraftRun.Status.FAILED:
+        failed_count += 1
     if run.post_id:
+        error = run.error_message or run.post.last_error
         print(f"slot {run.run_number}: {run.status} · {run.post.source_keyword} · draft #{run.post_id} · {run.post.status}")
     else:
-        print(f"slot {run.run_number}: {run.status} · {run.error_message or 'no draft created'}")
+        error = run.error_message
+        print(f"slot {run.run_number}: {run.status} · no draft created")
+    if error:
+        print(f"  error: {error}")
+print(f"FAILED_SLOTS={failed_count}")
 '@
-Write-Host ""
-Write-Host "Today's draft results:" -ForegroundColor Cyan
-& $python manage.py shell -c $summary
-if ($LASTEXITCODE -ne 0) {
-    throw "Draft run ended, but the result summary could not be loaded. Check the database connection."
-}
-if ($generationExitCode -ne 0) {
-    throw "One or more drafts failed. Review the command output and Render app draft history."
+
+for ($attempt = 1; $attempt -le 3; $attempt++) {
+    Write-Host ""
+    Write-Host "Generation attempt $attempt of 3..." -ForegroundColor Cyan
+    & $python manage.py generate_morning_drafts
+    $generationExitCode = $LASTEXITCODE
+
+    Write-Host "Today's draft results:" -ForegroundColor Cyan
+    $summaryOutput = & $python manage.py shell -c $summary
+    $summaryExitCode = $LASTEXITCODE
+    $failedCount = -1
+    foreach ($line in $summaryOutput) {
+        if ($line -match '^FAILED_SLOTS=(\d+)$') {
+            $failedCount = [int]$Matches[1]
+        } else {
+            Write-Host $line
+        }
+    }
+
+    if ($summaryExitCode -ne 0 -or $failedCount -lt 0) {
+        throw "Draft run ended, but the result summary could not be loaded. Check the database connection."
+    }
+    if ($failedCount -eq 0) {
+        if ($generationExitCode -ne 0) {
+            throw "The command returned an error even though no failed draft slots remain. Review the output above."
+        }
+        break
+    }
+    if ($attempt -eq 3) {
+        throw "One or more drafts are still failed after 3 total attempts. Review the error above or open the failed draft in the app."
+    }
+    Write-Host "$failedCount slot(s) failed. Retrying only the failed slot(s) in a few seconds..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 3
 }
 
 Write-Host ""

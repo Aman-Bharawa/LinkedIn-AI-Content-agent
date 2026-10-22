@@ -156,7 +156,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\test_morning_
 ```
 
 Type `RUN` when prompted. The script shows the database host, saved topics, and today's slot state,
-then creates drafts synchronously and prints each result. To have those drafts appear on Render,
+then creates drafts synchronously and prints each result. If a slot fails, it retries only the failed
+slot, up to three total attempts. To have those drafts appear on Render,
 the local `.env` must point to the same Render PostgreSQL database used by the web app, and that
 database must allow your laptop's IP. This rehearsal uses Gemini credits/quota but does not publish.
 The lower-level Task Scheduler wrapper, `scripts/run_morning_drafts.ps1`, runs without a prompt.
