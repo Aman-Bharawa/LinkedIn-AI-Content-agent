@@ -231,6 +231,7 @@ class KnowledgeContext:
     company_facts: tuple[str, ...]
     subject_areas: tuple[str, ...]
     writing_rules: str
+    custom_instructions: str
     writing_examples: tuple[WritingSample, ...]
 
     @property
@@ -256,5 +257,6 @@ def load_knowledge_context(*, max_examples: int = 5) -> KnowledgeContext:
         company_facts=contents(KnowledgeCategory.COMPANY),
         subject_areas=contents(KnowledgeCategory.SUBJECT_AREA),
         writing_rules="\n\n".join(contents(KnowledgeCategory.WRITING_STYLE)),
+        custom_instructions="\n\n".join(contents(KnowledgeCategory.OTHER)),
         writing_examples=tuple(WritingSample(e.title, e.content) for e in examples),
     )

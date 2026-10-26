@@ -54,6 +54,26 @@ class OwnerKnowledgeForm(forms.Form):
             "selecting topics, writing drafts, and reviewing them."
         ),
     )
+    custom_instructions = forms.CharField(
+        label="Custom instructions for Gemini",
+        required=False,
+        max_length=4000,
+        widget=forms.Textarea(
+            attrs={
+                "rows": 7,
+                "class": "form-control",
+                "placeholder": (
+                    "Example: Write for early-career software developers. Use concrete examples, "
+                    "avoid clickbait, and end with one thoughtful question when it fits."
+                ),
+            }
+        ),
+        help_text=(
+            "Add preferences for topics, audience, structure, or wording. These are included "
+            "when Gemini selects topics, suggests ideas, writes drafts, and reviews drafts. "
+            "They guide the output but do not make unsupported facts true."
+        ),
+    )
     subject_areas = forms.CharField(
         label="Approved subject areas",
         required=False,
@@ -121,6 +141,22 @@ class OwnerKnowledgeForm(forms.Form):
                     title="Owner writing style",
                     content=style,
                     source="owner-dashboard: owner-provided",
+                    is_verified=True,
+                    is_active=True,
+                )
+
+            ContentKnowledge.objects.filter(
+                category=KnowledgeCategory.OTHER,
+                source="owner-dashboard: custom instructions",
+                is_active=True,
+            ).update(is_active=False)
+            custom_instructions = self.cleaned_data["custom_instructions"].strip()
+            if custom_instructions:
+                ContentKnowledge.objects.create(
+                    category=KnowledgeCategory.OTHER,
+                    title="Owner custom instructions",
+                    content=custom_instructions,
+                    source="owner-dashboard: custom instructions",
                     is_verified=True,
                     is_active=True,
                 )

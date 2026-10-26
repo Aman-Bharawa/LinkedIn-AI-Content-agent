@@ -20,10 +20,14 @@ def _current_form_data() -> dict[str, str]:
         )
 
     style = rows.filter(category=KnowledgeCategory.WRITING_STYLE).order_by("-updated_at").first()
+    custom_instructions = (
+        rows.filter(category=KnowledgeCategory.OTHER).order_by("-updated_at").first()
+    )
     return {
         "founder_facts": facts(KnowledgeCategory.FOUNDER),
         "company_facts": facts(KnowledgeCategory.COMPANY),
         "writing_style": style.content if style else "",
+        "custom_instructions": custom_instructions.content if custom_instructions else "",
         "subject_areas": "\n".join(
             rows.filter(category=KnowledgeCategory.SUBJECT_AREA)
             .order_by("pk")

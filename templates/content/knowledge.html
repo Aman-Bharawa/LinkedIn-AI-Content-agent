@@ -8,7 +8,7 @@
       <div>
         <p class="eyebrow text-primary mb-2">AGENT CONTEXT</p>
         <h1 id="knowledge-heading">Knowledge and writing style</h1>
-        <p class="text-secondary mb-0">Update the information Gemini can use when choosing topics, writing drafts, and reviewing them.</p>
+        <p class="text-secondary mb-0">Update the information and preferences Gemini uses when choosing topics, writing drafts, and reviewing them.</p>
       </div>
     </div>
     <div class="composer-body">
@@ -38,6 +38,13 @@
           {{ form.writing_style }}
           <div class="form-text">{{ form.writing_style.help_text }}</div>
           {% for error in form.writing_style.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label fw-medium" for="{{ form.custom_instructions.id_for_label }}">{{ form.custom_instructions.label }}</label>
+          {{ form.custom_instructions }}
+          <div class="form-text">{{ form.custom_instructions.help_text }}</div>
+          {% for error in form.custom_instructions.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
         </div>
 
         <div class="mb-4">

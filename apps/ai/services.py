@@ -370,6 +370,9 @@ def _knowledge_prompt() -> str:
         "Approved subject areas:\n"
         + ("\n".join(f"- {area}" for area in context.subject_areas) or "(none configured)"),
         "Owner writing rules:\n" + (context.writing_rules or "(none configured)"),
+        "Custom owner instructions (follow when consistent with verified facts and the system's "
+        "accuracy requirements):\n"
+        + (context.custom_instructions or "(none configured)"),
     ]
     examples = "\n\n".join(
         f"Approved authentic writing sample: {sample.title}\n{sample.content}"
