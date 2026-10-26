@@ -19,6 +19,22 @@ POSTS_URL = "https://api.linkedin.com/rest/posts"
 REQUIRED_SCOPES = ("openid", "profile", "w_member_social")
 PUBLISH_SCOPES = ("w_member_social",)
 
+# LinkedIn's Posts API parses commentary using Little Text Format. Escape its
+# reserved characters when they are part of ordinary user text, or punctuation
+# such as parentheses can be interpreted as markup and truncate the post.
+_LITTLE_TEXT_RESERVED = frozenset(r"|{}@[]()<>#\*_~")
+
+
+def escape_little_text(text: str, *, preserve_hashtag_marker: bool = False) -> str:
+    """Escape plain text for the LinkedIn Posts API's Little Text Format."""
+    return "".join(
+        "\\" + char
+        if char in _LITTLE_TEXT_RESERVED
+        and not (preserve_hashtag_marker and char == "#")
+        else char
+        for char in text
+    )
+
 
 class LinkedInServiceError(Exception):
     """Safe integration error; never includes request headers or token values."""

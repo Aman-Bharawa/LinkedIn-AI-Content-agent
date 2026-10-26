@@ -26,6 +26,7 @@ from .services import (
     PUBLISH_SCOPES,
     LinkedInAmbiguousError,
     LinkedInServiceError,
+    escape_little_text,
     publish_text_post,
 )
 
@@ -172,7 +173,7 @@ def publish_approved_post(self: Any, post_id: int, actor_id: int) -> str:
         http_status, urn = publish_text_post(
             access_token=cast(SecretValue, account.access_token).reveal(),
             author_urn=account.member_urn,
-            text=final_text,
+            text=escape_little_text(final_text, preserve_hashtag_marker=True),
         )
     except LinkedInAmbiguousError as exc:
         publication.status = PublicationStatus.UNKNOWN
