@@ -13,7 +13,7 @@
     </div>
     <div class="composer-body">
       <div class="alert alert-info" role="note">
-        Changes are saved to PostgreSQL and used for the next generation or review task. For each section, saved dashboard values take precedence over values imported from Markdown. Clear a section and save to return to its Markdown values. Only active, verified facts are supplied as factual support.
+        Changes are saved to PostgreSQL and used for the next generation or review task. Enter new values to replace a section; leave it blank to keep its most recently saved values. If a section has no saved dashboard value, its Markdown knowledge remains in use. Only active, verified facts are supplied as factual support.
       </div>
       <form method="post">
         {% csrf_token %}

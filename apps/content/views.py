@@ -46,7 +46,11 @@ def knowledge_settings(request: HttpRequest) -> HttpResponse:
         form = OwnerKnowledgeForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, "Knowledge saved. New drafts will use these database values.")
+            messages.success(
+                request,
+                "Knowledge saved. Non-empty sections were updated; blank sections kept their "
+                "most recently saved values. Gemini will use the updated context on its next task.",
+            )
             return redirect("content:knowledge")
     else:
         form = OwnerKnowledgeForm(initial=_current_form_data())

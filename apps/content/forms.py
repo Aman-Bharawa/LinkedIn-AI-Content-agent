@@ -121,21 +121,19 @@ class OwnerKnowledgeForm(forms.Form):
         from django.db import transaction
 
         with transaction.atomic():
-            for category in (
-                KnowledgeCategory.FOUNDER,
-                KnowledgeCategory.COMPANY,
-                KnowledgeCategory.WRITING_STYLE,
-                KnowledgeCategory.SUBJECT_AREA,
-            ):
-                ContentKnowledge.objects.filter(
-                    category=category, source__startswith="owner-dashboard:", is_active=True
-                ).update(is_active=False)
+            founder_facts = self.cleaned_data["founder_facts"]
+            if founder_facts:
+                self._deactivate_dashboard_values(KnowledgeCategory.FOUNDER)
+                self._save_facts(KnowledgeCategory.FOUNDER, founder_facts)
 
-            self._save_facts(KnowledgeCategory.FOUNDER, self.cleaned_data["founder_facts"])
-            self._save_facts(KnowledgeCategory.COMPANY, self.cleaned_data["company_facts"])
+            company_facts = self.cleaned_data["company_facts"]
+            if company_facts:
+                self._deactivate_dashboard_values(KnowledgeCategory.COMPANY)
+                self._save_facts(KnowledgeCategory.COMPANY, company_facts)
 
             style = self.cleaned_data["writing_style"].strip()
             if style:
+                self._deactivate_dashboard_values(KnowledgeCategory.WRITING_STYLE)
                 ContentKnowledge.objects.create(
                     category=KnowledgeCategory.WRITING_STYLE,
                     title="Owner writing style",
@@ -145,13 +143,9 @@ class OwnerKnowledgeForm(forms.Form):
                     is_active=True,
                 )
 
-            ContentKnowledge.objects.filter(
-                category=KnowledgeCategory.OTHER,
-                source="owner-dashboard: custom instructions",
-                is_active=True,
-            ).update(is_active=False)
             custom_instructions = self.cleaned_data["custom_instructions"].strip()
             if custom_instructions:
+                self._deactivate_dashboard_values(KnowledgeCategory.OTHER)
                 ContentKnowledge.objects.create(
                     category=KnowledgeCategory.OTHER,
                     title="Owner custom instructions",
@@ -161,15 +155,24 @@ class OwnerKnowledgeForm(forms.Form):
                     is_active=True,
                 )
 
-            for area in self.cleaned_data["subject_areas"]:
-                ContentKnowledge.objects.create(
-                    category=KnowledgeCategory.SUBJECT_AREA,
-                    title=area[:255],
-                    content=area,
-                    source="owner-dashboard: owner-provided",
-                    is_verified=True,
-                    is_active=True,
-                )
+            subject_areas = self.cleaned_data["subject_areas"]
+            if subject_areas:
+                self._deactivate_dashboard_values(KnowledgeCategory.SUBJECT_AREA)
+                for area in subject_areas:
+                    ContentKnowledge.objects.create(
+                        category=KnowledgeCategory.SUBJECT_AREA,
+                        title=area[:255],
+                        content=area,
+                        source="owner-dashboard: owner-provided",
+                        is_verified=True,
+                        is_active=True,
+                    )
+
+    @staticmethod
+    def _deactivate_dashboard_values(category: str) -> None:
+        ContentKnowledge.objects.filter(
+            category=category, source__startswith="owner-dashboard:", is_active=True
+        ).update(is_active=False)
 
     @staticmethod
     def _save_facts(category: str, facts: list[tuple[str, str]]) -> None:
