@@ -21,12 +21,29 @@ class TimeStampedModel(models.Model):
 
 
 class MorningTopic(TimeStampedModel):
-    """An owner-provided keyword eligible for a random morning draft."""
+    """A user's keyword eligible for a random morning draft."""
 
-    topic = models.CharField(max_length=255, unique=True)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="morning_topics",
+    )
+    topic = models.CharField(max_length=255)
 
     class Meta:
         ordering = ["topic"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["topic"], condition=models.Q(owner__isnull=True),
+                name="morning_topic_global_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["owner", "topic"], condition=models.Q(owner__isnull=False),
+                name="morning_topic_owner_uniq",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.topic
@@ -64,13 +81,20 @@ class AuditAction(models.TextChoices):
 
 
 class ScheduledDraftRun(models.Model):
-    """One idempotent morning-draft slot per owner-local calendar date."""
+    """One idempotent morning-draft slot per user-local calendar date."""
 
     class Status(models.TextChoices):
         STARTED = "started", "Started"
         SUCCEEDED = "succeeded", "Succeeded"
         FAILED = "failed", "Failed"
 
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="scheduled_draft_runs",
+    )
     run_date = models.DateField()
     run_number = models.PositiveSmallIntegerField(default=1)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.STARTED)
@@ -87,7 +111,14 @@ class ScheduledDraftRun(models.Model):
                 name="scheduled_run_status_valid",
             ),
             models.UniqueConstraint(
-                fields=["run_date", "run_number"], name="scheduled_run_date_number_uniq"
+                fields=["owner", "run_date", "run_number"],
+                condition=models.Q(owner__isnull=False),
+                name="scheduled_run_owner_date_number_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["run_date", "run_number"],
+                condition=models.Q(owner__isnull=True),
+                name="scheduled_run_global_date_number_uniq",
             ),
         ]
 

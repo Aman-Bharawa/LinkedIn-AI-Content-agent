@@ -72,8 +72,10 @@ def transition_post(
 
         if not can_transition(from_status, to_status):
             raise InvalidTransition(f"Cannot move post from {from_status} to {to_status}.")
-        if to_status in OWNER_ONLY_TARGETS and not is_owner(actor):
-            raise OwnerRequired(f"Only the owner can move a post to {to_status}.")
+        if to_status in OWNER_ONLY_TARGETS and (
+            not is_owner(actor) or locked.owner_id != getattr(actor, "pk", None)
+        ):
+            raise OwnerRequired(f"Only this post's owner can move it to {to_status}.")
 
         now = timezone.now()
         locked.status = to_status

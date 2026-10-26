@@ -56,6 +56,7 @@ def generate_post(request: HttpRequest) -> HttpResponse:
 
     keyword = form.cleaned_data["keyword"].strip()
     post = LinkedInPost.objects.create(
+        owner=request.user,
         topic=keyword,
         source_keyword=keyword,
         origin=PostOrigin.KEYWORD,
@@ -83,7 +84,8 @@ def generate_post(request: HttpRequest) -> HttpResponse:
 @require_POST
 def regenerate_post(request: HttpRequest, post_id: int) -> HttpResponse:
     post = get_object_or_404(
-        LinkedInPost.objects.select_related("content_topic__pillar"), pk=post_id
+        LinkedInPost.objects.filter(owner=request.user).select_related("content_topic__pillar"),
+        pk=post_id,
     )
     if (
         post.status not in {*EDITABLE_STATUSES, PostStatus.FAILED}
@@ -114,7 +116,7 @@ def regenerate_post(request: HttpRequest, post_id: int) -> HttpResponse:
 @owner_required
 @require_http_methods(["GET", "POST"])
 def edit_post(request: HttpRequest, post_id: int) -> HttpResponse:
-    post = get_object_or_404(LinkedInPost, pk=post_id)
+    post = get_object_or_404(LinkedInPost, pk=post_id, owner=request.user)
     if post.status not in EDITABLE_STATUSES:
         messages.error(request, "This post can no longer be edited in its current state.")
         return redirect("posts:detail", post_id=post.pk)
@@ -128,7 +130,7 @@ def edit_post(request: HttpRequest, post_id: int) -> HttpResponse:
     form = PostEditForm(request.POST or None, initial=initial)
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
-            post = LinkedInPost.objects.select_for_update().get(pk=post.pk)
+            post = LinkedInPost.objects.select_for_update().get(pk=post.pk, owner=request.user)
             if post.status not in EDITABLE_STATUSES:
                 messages.error(request, "This post changed state and can no longer be edited.")
                 return redirect("posts:detail", post_id=post.pk)
@@ -164,10 +166,12 @@ def edit_post(request: HttpRequest, post_id: int) -> HttpResponse:
 @require_GET
 def post_detail(request: HttpRequest, post_id: int) -> HttpResponse:
     post = get_object_or_404(
-        LinkedInPost.objects.select_related("pillar", "approved_by", "content_topic"),
+        LinkedInPost.objects.filter(owner=request.user).select_related(
+            "pillar", "approved_by", "content_topic"
+        ),
         pk=post_id,
     )
-    publication_settings = PublicationScheduleSettings.get_solo()
+    publication_settings = PublicationScheduleSettings.get_for_user(request.user)
     can_schedule = (
         post.status == PostStatus.APPROVED
         and post.scheduled_for is not None
@@ -207,13 +211,13 @@ def post_detail(request: HttpRequest, post_id: int) -> HttpResponse:
 @owner_required
 @require_POST
 def approve_post(request: HttpRequest, post_id: int) -> HttpResponse:
-    post = get_object_or_404(LinkedInPost, pk=post_id)
+    post = get_object_or_404(LinkedInPost, pk=post_id, owner=request.user)
     try:
         with transaction.atomic():
             post = transition_post(post, PostStatus.APPROVED, actor=request.user)
             post.publication_queued_at = None
             post.save(update_fields=["publication_queued_at", "updated_at"])
-            refresh_publication_queue()
+            refresh_publication_queue(owner=request.user)
             post.refresh_from_db(fields=["scheduled_for"])
             AuditEvent.objects.create(
                 actor=cast(Any, request.user),
@@ -237,7 +241,9 @@ def approve_post(request: HttpRequest, post_id: int) -> HttpResponse:
 @require_POST
 def schedule_post(request: HttpRequest, post_id: int) -> HttpResponse:
     with transaction.atomic():
-        post = get_object_or_404(LinkedInPost.objects.select_for_update(), pk=post_id)
+        post = get_object_or_404(
+            LinkedInPost.objects.select_for_update().filter(owner=request.user), pk=post_id
+        )
         if (
             post.status != PostStatus.APPROVED
             or not post.is_publishable
@@ -246,7 +252,7 @@ def schedule_post(request: HttpRequest, post_id: int) -> HttpResponse:
         ):
             messages.error(request, "Only an owner-approved post can be scheduled.")
             return redirect("posts:detail", post_id=post.pk)
-        publication_settings = PublicationScheduleSettings.get_solo()
+        publication_settings = PublicationScheduleSettings.get_for_user(request.user)
         form = SchedulePublicationForm(
             request.POST,
             scheduled_for=post.scheduled_for,
@@ -269,7 +275,7 @@ def schedule_post(request: HttpRequest, post_id: int) -> HttpResponse:
         )
         post.last_error = ""
         post.save(update_fields=["scheduled_for", "last_error", "updated_at"])
-        refresh_publication_queue()
+        refresh_publication_queue(owner=request.user)
         AuditEvent.objects.create(
             actor=cast(Any, request.user),
             action=AuditAction.STATUS_CHANGE,
@@ -286,14 +292,16 @@ def schedule_post(request: HttpRequest, post_id: int) -> HttpResponse:
 @require_POST
 def cancel_schedule(request: HttpRequest, post_id: int) -> HttpResponse:
     with transaction.atomic():
-        post = get_object_or_404(LinkedInPost.objects.select_for_update(), pk=post_id)
+        post = get_object_or_404(
+            LinkedInPost.objects.select_for_update().filter(owner=request.user), pk=post_id
+        )
         if post.status != PostStatus.APPROVED or post.publication_queued_at is not None:
             messages.error(request, "This post can no longer be returned to review.")
             return redirect("posts:detail", post_id=post.pk)
         post = transition_post(post, PostStatus.PENDING_APPROVAL, actor=request.user)
         post.scheduled_for = None
         post.save(update_fields=["scheduled_for", "updated_at"])
-        refresh_publication_queue()
+        refresh_publication_queue(owner=request.user)
     messages.info(request, "The post was removed from the publishing queue and returned to review.")
     return redirect("posts:detail", post_id=post.pk)
 
@@ -301,12 +309,12 @@ def cancel_schedule(request: HttpRequest, post_id: int) -> HttpResponse:
 @owner_required
 @require_http_methods(["GET", "POST"])
 def publication_window(request: HttpRequest) -> HttpResponse:
-    publication_settings = PublicationScheduleSettings.get_solo()
+    publication_settings = PublicationScheduleSettings.get_for_user(request.user)
     form = PublicationWindowForm(request.POST or None, instance=publication_settings)
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
             form.save()
-            refresh_publication_queue()
+            refresh_publication_queue(owner=request.user)
         messages.success(
             request,
             "Daily window saved. Approved posts were arranged one per day in queue order.",
@@ -320,6 +328,7 @@ def publication_window(request: HttpRequest) -> HttpResponse:
             "publication_settings": publication_settings,
             "display_timezone": timezone.get_current_timezone_name(),
             "queued_posts": LinkedInPost.objects.filter(
+                owner=request.user,
                 status=PostStatus.APPROVED,
                 scheduled_for__isnull=False,
                 publication_queued_at__isnull=True,
@@ -331,7 +340,7 @@ def publication_window(request: HttpRequest) -> HttpResponse:
 @owner_required
 @require_POST
 def reject_post(request: HttpRequest, post_id: int) -> HttpResponse:
-    post = get_object_or_404(LinkedInPost, pk=post_id)
+    post = get_object_or_404(LinkedInPost, pk=post_id, owner=request.user)
     reason = request.POST.get("reason", "").strip()[:2000]
     try:
         post = transition_post(post, PostStatus.REJECTED, actor=request.user, reason=reason)

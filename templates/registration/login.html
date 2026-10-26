@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Sign in · LinkedIn AI Content Agent{% endblock %}
+
+{% block content %}
+  <section class="composer-card mx-auto" style="max-width: 560px" aria-labelledby="login-heading">
+    <div class="composer-heading">
+      <div>
+        <p class="eyebrow text-primary mb-2">YOUR WORKSPACE</p>
+        <h1 id="login-heading">Sign in</h1>
+        <p class="text-secondary mb-0">Sign in to manage your own drafts and LinkedIn connection.</p>
+      </div>
+    </div>
+    <div class="composer-body">
+      <form method="post">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.username.id_for_label }}">Username</label>
+          {{ form.username }}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.password.id_for_label }}">Password</label>
+          {{ form.password }}
+        </div>
+        {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+        <button class="btn btn-generate" type="submit">Sign in</button>
+        <p class="mt-3 mb-0">New here? <a href="{% url 'accounts:sign-up' %}">Create an account</a></p>
+      </form>
+    </div>
+  </section>
+{% endblock %}

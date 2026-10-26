@@ -39,9 +39,15 @@ class PostStatus(models.TextChoices):
 
 
 class PublicationScheduleSettings(TimeStampedModel):
-    """One owner-wide daily window for the automatic publishing queue."""
+    """A user's daily window for the automatic publishing queue."""
 
-    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    owner = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="publication_schedule_settings",
+    )
     window_start = models.TimeField(default=time(9, 0))
     window_end = models.TimeField(default=time(17, 0))
 
@@ -65,8 +71,8 @@ class PublicationScheduleSettings(TimeStampedModel):
             raise ValidationError({"window_end": "The end time must be after the start time."})
 
     @classmethod
-    def get_solo(cls) -> PublicationScheduleSettings:
-        settings, _ = cls.objects.get_or_create(pk=1)
+    def get_for_user(cls, owner: Any) -> PublicationScheduleSettings:
+        settings, _ = cls.objects.get_or_create(owner=owner)
         return settings
 
     def __str__(self) -> str:
@@ -120,6 +126,13 @@ class LinkedInPost(TimeStampedModel):
     Status = PostStatus
     Origin = PostOrigin
 
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="linkedin_posts",
+    )
     topic = models.CharField(max_length=255, blank=True)
     origin = models.CharField(max_length=16, choices=PostOrigin.choices, default=PostOrigin.KEYWORD)
     source_keyword = models.CharField(max_length=255, blank=True)

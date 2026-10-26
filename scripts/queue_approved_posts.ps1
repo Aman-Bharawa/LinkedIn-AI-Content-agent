@@ -1,3 +1,5 @@
+param([string]$Username)
+
 $ErrorActionPreference = "Stop"
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -8,26 +10,36 @@ if (-not (Test-Path -LiteralPath $python)) {
 
 Set-Location $projectRoot
 $env:DJANGO_SETTINGS_MODULE = "config.settings.prod"
+$env:APP_PUBLICATION_USERNAME = $Username
 
 Write-Host "Refreshing approved-post queue and checking for due posts..." -ForegroundColor Cyan
 $queueAndReport = @'
+import os
 from django.db import connection
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 from apps.posts.models import LinkedInPost, PostStatus
 from apps.posts.scheduling import refresh_publication_queue
 
 connection.ensure_connection()
-changed = refresh_publication_queue()
+User = get_user_model()
+username = os.environ.get("APP_PUBLICATION_USERNAME", "").strip()
+owner = User.objects.filter(username=username, is_active=True).first() if username else None
+if owner is None and not username:
+    owner = User.objects.filter(is_active=True, is_superuser=True).order_by("pk").first()
+if owner is None:
+    raise RuntimeError("No matching active user. Pass -Username or create a superuser first.")
+changed = refresh_publication_queue(owner=owner)
 print(f"Database: {connection.settings_dict['NAME']} @ {connection.settings_dict['HOST']}")
+print(f"Selected user: {owner.username}")
 print(f"Queue assignments changed: {changed}")
-posts = LinkedInPost.objects.filter(status=PostStatus.APPROVED).order_by("scheduled_for", "approved_at", "pk")
+posts = LinkedInPost.objects.filter(owner=owner, status=PostStatus.APPROVED).order_by("scheduled_for", "approved_at", "pk")
 now = timezone.now()
 due_posts = posts.filter(
     scheduled_for__isnull=False,
     scheduled_for__lte=now,
     publication_queued_at__isnull=True,
-    approved_by__is_active=True,
-    approved_by__is_superuser=True,
+    approved_by=owner,
 )
 print("Approved-post schedule:")
 for post in posts:
@@ -69,8 +81,8 @@ if ($dueCount -eq 0) {
 }
 
 Write-Host ""
-Write-Host "A due post will be sent to your connected LinkedIn account and become public." -ForegroundColor Red
-Write-Host "Keep the Celery worker running. This script triggers the publisher task; the worker performs the LinkedIn request."
+Write-Host "One of this user's due posts will be sent to their connected LinkedIn account and become public." -ForegroundColor Red
+Write-Host "Keep the Celery worker running. This script triggers this user's publisher task; the worker performs the LinkedIn request."
 $answer = Read-Host "Type PUBLISH to continue"
 if ($answer -cne "PUBLISH") {
     Write-Host "Cancelled. No publishing task was queued."
@@ -78,10 +90,17 @@ if ($answer -cne "PUBLISH") {
 }
 
 $dispatch = @'
-from apps.linkedin.tasks import enqueue_due_publications
+import os
+from django.contrib.auth import get_user_model
+from apps.linkedin.tasks import _enqueue_due_for_owner
 
-result = enqueue_due_publications.apply().get()
-print(f"Publication dispatch result: {result}")
+username = os.environ.get("APP_PUBLICATION_USERNAME", "").strip()
+User = get_user_model()
+owner = User.objects.filter(username=username, is_active=True).first() if username else User.objects.filter(is_active=True, is_superuser=True).order_by("pk").first()
+if owner is None:
+    raise RuntimeError("Selected user is unavailable.")
+queued = _enqueue_due_for_owner(owner)
+print(f"Publication tasks queued for {owner.username}: {queued}")
 '@
 Write-Host "Triggering the due-publication task..." -ForegroundColor Cyan
 & $python manage.py shell -c $dispatch

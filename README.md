@@ -82,7 +82,7 @@ uv run celery -A config worker --pool=solo -l info
 uv run celery -A config beat -l info
 ```
 
-- App: http://localhost:8000/ (requires login as the owner/superuser)
+- App: http://localhost:8000/ (create an account at `/accounts/sign-up/`, then connect your own LinkedIn account)
 - Liveness: http://localhost:8000/health/
 - Readiness (checks PostgreSQL and Redis): http://localhost:8000/health/ready/
 

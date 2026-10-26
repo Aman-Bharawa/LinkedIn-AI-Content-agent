@@ -10,8 +10,10 @@ from .forms import OwnerKnowledgeForm
 from .models import ContentKnowledge, KnowledgeCategory
 
 
-def _current_form_data() -> dict[str, str]:
-    rows = ContentKnowledge.objects.filter(source__startswith="owner-dashboard:", is_active=True)
+def _current_form_data(owner: object) -> dict[str, str]:
+    rows = ContentKnowledge.objects.filter(
+        owner=owner, source__startswith="owner-dashboard:", is_active=True
+    )
 
     def facts(category: str) -> str:
         return "\n".join(
@@ -45,7 +47,7 @@ def knowledge_settings(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         form = OwnerKnowledgeForm(request.POST)
         if form.is_valid():
-            form.save()
+            form.save(owner=request.user)
             messages.success(
                 request,
                 "Knowledge saved. Non-empty sections were updated; blank sections kept their "
@@ -53,6 +55,6 @@ def knowledge_settings(request: HttpRequest) -> HttpResponse:
             )
             return redirect("content:knowledge")
     else:
-        form = OwnerKnowledgeForm(initial=_current_form_data())
+        form = OwnerKnowledgeForm(initial=_current_form_data(request.user))
 
     return render(request, "content/knowledge.html", {"form": form})

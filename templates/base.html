@@ -16,9 +16,18 @@
         <span>LinkedIn Content Agent</span>
       </a>
       <div class="d-flex align-items-center gap-3">
+        {% if user.is_authenticated %}
         <a class="nav-link" href="{% url 'content:knowledge' %}">Knowledge</a>
         <a class="nav-link" href="{% url 'core:morning-topics' %}">Topics</a>
-        <span class="nav-status"><span class="status-pulse" aria-hidden="true"></span> Workspace</span>
+        <span class="nav-status"><span class="status-pulse" aria-hidden="true"></span> {{ user.username }}</span>
+        <form method="post" action="{% url 'accounts:logout' %}">
+          {% csrf_token %}
+          <button class="btn btn-sm btn-outline-secondary" type="submit">Sign out</button>
+        </form>
+        {% else %}
+        <a class="nav-link" href="{% url 'accounts:login' %}">Sign in</a>
+        <a class="btn btn-sm btn-generate" href="{% url 'accounts:sign-up' %}">Create account</a>
+        {% endif %}
       </div>
     </div>
   </nav>

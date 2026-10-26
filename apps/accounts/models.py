@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -11,26 +12,31 @@ from apps.core.security import EncryptedTextField
 
 
 def is_owner(user: Any) -> bool:
-    """The single V1 owner is an active superuser. There is no public signup."""
+    """Whether this active signed-in user may use their private workspace."""
     return bool(
         user is not None
         and getattr(user, "is_authenticated", False)
         and user.is_active
-        and user.is_superuser
     )
 
 
 class LinkedInAccount(TimeStampedModel):
-    """The owner's single connected LinkedIn member account.
+    """A user's connected LinkedIn member account.
 
     Tokens are encrypted at rest (see apps.core.security) and surface in Python only
     as masked ``SecretValue`` objects. They are excluded from admin, forms and
     string representations.
     """
 
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="linkedin_accounts",
+    )
     member_urn = models.CharField(
         max_length=255,
-        unique=True,
         help_text="LinkedIn member URN, e.g. urn:li:person:abc123.",
     )
     display_name = models.CharField(max_length=255, blank=True)
@@ -46,11 +52,14 @@ class LinkedInAccount(TimeStampedModel):
     class Meta:
         verbose_name = "LinkedIn account"
         constraints = [
-            # Single-owner V1: at most one connected account at a time.
+            # Each user may have only one active LinkedIn account.
             models.UniqueConstraint(
-                fields=["is_active"],
+                fields=["owner"],
                 condition=models.Q(is_active=True),
-                name="linkedin_account_single_active",
+                name="linkedin_account_owner_active_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["owner", "member_urn"], name="linkedin_account_owner_member_uniq"
             ),
             models.CheckConstraint(
                 condition=models.Q(member_urn__startswith="urn:li:"),

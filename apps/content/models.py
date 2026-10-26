@@ -4,6 +4,7 @@ import re
 import unicodedata
 from typing import Any
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
@@ -98,8 +99,16 @@ class ContentFormat(models.TextChoices):
 
 
 class ContentTopic(TimeStampedModel):
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="content_topics",
+        help_text="Null means a shared, system-provided topic.",
+    )
     title = models.CharField(max_length=255)
-    normalized_title = models.CharField(max_length=255, unique=True, editable=False)
+    normalized_title = models.CharField(max_length=255, editable=False)
     angle = models.TextField(blank=True, help_text="Description / angle for the topic.")
     post_format = models.CharField(
         max_length=32, choices=ContentFormat.choices, default=ContentFormat.LESSON
@@ -112,6 +121,16 @@ class ContentTopic(TimeStampedModel):
     class Meta:
         ordering = ["-created_at"]
         constraints = [
+            models.UniqueConstraint(
+                fields=["normalized_title"],
+                condition=models.Q(owner__isnull=True),
+                name="content_topic_global_title_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["owner", "normalized_title"],
+                condition=models.Q(owner__isnull=False),
+                name="content_topic_owner_title_uniq",
+            ),
             models.CheckConstraint(
                 condition=~models.Q(normalized_title=""),
                 name="content_topic_normalized_title_not_empty",
@@ -129,7 +148,9 @@ class ContentTopic(TimeStampedModel):
         normalized = normalize_title(self.title or "")
         if not normalized:
             raise ValidationError({"title": "Title must contain letters or numbers."})
-        duplicate = ContentTopic.objects.filter(normalized_title=normalized).exclude(pk=self.pk)
+        duplicate = ContentTopic.objects.filter(
+            normalized_title=normalized, owner_id=self.owner_id
+        ).exclude(pk=self.pk)
         if duplicate.exists():
             raise ValidationError({"title": "A topic with this title already exists."})
 
@@ -166,6 +187,14 @@ class KnowledgeCategory(models.TextChoices):
 class ContentKnowledge(TimeStampedModel):
     Category = KnowledgeCategory
 
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="content_knowledge",
+        help_text="Null means shared Markdown knowledge; otherwise this belongs to one user.",
+    )
     title = models.CharField(max_length=255)
     content = models.TextField()
     category = models.CharField(max_length=32, choices=KnowledgeCategory.choices)

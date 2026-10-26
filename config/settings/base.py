@@ -103,9 +103,10 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Owner-only app: every page requires login. Until the owner login page arrives
-# (Milestone 7), Django admin's login form is used.
-LOGIN_URL = "admin:login"
+# Each user signs in to a private app workspace.
+LOGIN_URL = "accounts:login"
+LOGIN_REDIRECT_URL = "core:home"
+LOGOUT_REDIRECT_URL = "accounts:login"
 
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"

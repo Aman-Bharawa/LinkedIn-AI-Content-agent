@@ -33,30 +33,41 @@ from .services import (
 
 @shared_task(bind=True, name="linkedin.enqueue_due_publications", max_retries=0)
 def enqueue_due_publications(self: Any) -> str:
-    """Queue due, owner-approved posts for the existing guarded publisher task."""
-    refresh_publication_queue()
-    account = LinkedInAccount.objects.filter(is_active=True).first()
-    if account is None or account.is_access_token_expired():
-        return "linkedin_account_unavailable"
-    if not set(PUBLISH_SCOPES).issubset(account.scopes or []):
-        return "linkedin_permissions_missing"
+    """Queue due, user-approved posts for every active user's own LinkedIn account."""
+    User = get_user_model()
+    queued = 0
+    for owner in User.objects.filter(is_active=True).iterator():
+        queued += _enqueue_due_for_owner(owner)
+    return f"queued_{queued}"
 
+
+def _enqueue_due_for_owner(owner: Any) -> int:
+    refresh_publication_queue(owner=owner)
+    account = LinkedInAccount.objects.filter(owner=owner, is_active=True).first()
+    if account is None or account.is_access_token_expired():
+        return 0
+    if not set(PUBLISH_SCOPES).issubset(account.scopes or []):
+        return 0
     now = timezone.now()
-    if PostPublication.objects.filter(status__in=ACTIVE_PUBLICATION_STATUSES).exists():
-        return "another_publication_is_active"
+    if PostPublication.objects.filter(
+        post__owner=owner, status__in=ACTIVE_PUBLICATION_STATUSES
+    ).exists():
+        return 0
     if LinkedInPost.objects.filter(
+        owner=owner,
         status=PostStatus.APPROVED,
         publication_queued_at__isnull=False,
     ).exists():
-        return "a_publication_is_already_dispatched"
+        return 0
     due_ids = list(
         LinkedInPost.objects.filter(
+            owner=owner,
             status=PostStatus.APPROVED,
             scheduled_for__lte=now,
             scheduled_for__isnull=False,
             publication_queued_at__isnull=True,
             approved_by__is_active=True,
-            approved_by__is_superuser=True,
+            approved_by=owner,
         )
         .order_by("scheduled_for", "pk")
         .values_list("pk", flat=True)[:1]
@@ -96,7 +107,7 @@ def enqueue_due_publications(self: Any) -> str:
             )
         else:
             queued += 1
-    return f"queued_{queued}"
+    return queued
 
 
 def _release_scheduled_publication(post_id: int, reason: str) -> None:
@@ -111,7 +122,7 @@ def _release_scheduled_publication(post_id: int, reason: str) -> None:
 def publish_approved_post(self: Any, post_id: int, actor_id: int) -> str:
     """Publish one due, owner-approved post; never retry an uncertain result."""
     User = get_user_model()
-    actor = User.objects.filter(pk=actor_id, is_active=True, is_superuser=True).first()
+    actor = User.objects.filter(pk=actor_id, is_active=True).first()
     if actor is None:
         _release_scheduled_publication(post_id, "The approving owner account is unavailable.")
         return "owner_unavailable"
@@ -119,6 +130,8 @@ def publish_approved_post(self: Any, post_id: int, actor_id: int) -> str:
         with transaction.atomic():
             post = LinkedInPost.objects.select_for_update().get(pk=post_id)
             if (
+                post.owner_id != actor.pk
+                or
                 post.status != PostStatus.APPROVED
                 or not post.is_publishable
                 or post.approved_by_id != actor.pk
@@ -127,7 +140,9 @@ def publish_approved_post(self: Any, post_id: int, actor_id: int) -> str:
                 or post.publication_queued_at is None
             ):
                 return "post_not_due_or_not_queued"
-            account = LinkedInAccount.objects.select_for_update().filter(is_active=True).first()
+            account = LinkedInAccount.objects.select_for_update().filter(
+                owner=actor, is_active=True
+            ).first()
             if account is None:
                 _release_scheduled_publication(post.pk, "Connect LinkedIn to publish this post.")
                 return "linkedin_not_connected"

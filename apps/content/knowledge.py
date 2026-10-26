@@ -12,9 +12,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from django.conf import settings
-from django.db import transaction
+from django.db import models, transaction
 
 from .models import ContentKnowledge, KnowledgeCategory, WritingExample
 
@@ -119,7 +120,9 @@ def _knowledge_dir(base_dir: Path | None) -> Path:
 def _upsert_knowledge(
     category: str, content: str, source: str, *, verified: bool, title: str | None = None
 ) -> ContentKnowledge:
-    record = ContentKnowledge.objects.filter(category=category, content=content).first()
+    record = ContentKnowledge.objects.filter(
+        owner__isnull=True, category=category, content=content
+    ).first()
     record = record or ContentKnowledge(category=category, content=content)
     record.title = (title or content)[:255]
     record.source = source[:500]
@@ -132,7 +135,10 @@ def _upsert_knowledge(
 def _deactivate_missing(category: str, source_prefix: str, keep: list[int]) -> int:
     return (
         ContentKnowledge.objects.filter(
-            category=category, source__startswith=source_prefix, is_active=True
+            owner__isnull=True,
+            category=category,
+            source__startswith=source_prefix,
+            is_active=True,
         )
         .exclude(pk__in=keep)
         .update(is_active=False)
@@ -239,14 +245,15 @@ class KnowledgeContext:
         return bool(self.founder_facts or self.company_facts)
 
 
-def load_knowledge_context(*, max_examples: int = 5) -> KnowledgeContext:
-    usable = ContentKnowledge.objects.usable()
+def load_knowledge_context(*, owner: Any = None, max_examples: int = 5) -> KnowledgeContext:
+    usable = ContentKnowledge.objects.usable().filter(
+        models.Q(owner=owner) | models.Q(owner__isnull=True)
+    )
 
     def contents(category: str) -> tuple[str, ...]:
         category_rows = usable.filter(category=category).order_by("pk")
-        # The owner dashboard is an explicit database override for its category. If the
-        # owner clears that section, fall back to the Markdown-synced knowledge records.
-        overrides = category_rows.filter(source__startswith="owner-dashboard:")
+        # Each user's saved dashboard values override shared Markdown for just that category.
+        overrides = category_rows.filter(owner=owner, source__startswith="owner-dashboard:")
         if overrides.exists():
             category_rows = overrides
         return tuple(category_rows.values_list("content", flat=True))

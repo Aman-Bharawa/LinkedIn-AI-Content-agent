@@ -114,7 +114,7 @@ class OwnerKnowledgeForm(forms.Form):
             line.strip() for line in self.cleaned_data["subject_areas"].splitlines() if line.strip()
         ]
 
-    def save(self) -> None:
+    def save(self, *, owner: object) -> None:
         if not self.is_valid():
             raise ValueError("Call save() only after the form has validated.")
 
@@ -123,18 +123,19 @@ class OwnerKnowledgeForm(forms.Form):
         with transaction.atomic():
             founder_facts = self.cleaned_data["founder_facts"]
             if founder_facts:
-                self._deactivate_dashboard_values(KnowledgeCategory.FOUNDER)
-                self._save_facts(KnowledgeCategory.FOUNDER, founder_facts)
+                self._deactivate_dashboard_values(KnowledgeCategory.FOUNDER, owner)
+                self._save_facts(KnowledgeCategory.FOUNDER, founder_facts, owner)
 
             company_facts = self.cleaned_data["company_facts"]
             if company_facts:
-                self._deactivate_dashboard_values(KnowledgeCategory.COMPANY)
-                self._save_facts(KnowledgeCategory.COMPANY, company_facts)
+                self._deactivate_dashboard_values(KnowledgeCategory.COMPANY, owner)
+                self._save_facts(KnowledgeCategory.COMPANY, company_facts, owner)
 
             style = self.cleaned_data["writing_style"].strip()
             if style:
-                self._deactivate_dashboard_values(KnowledgeCategory.WRITING_STYLE)
+                self._deactivate_dashboard_values(KnowledgeCategory.WRITING_STYLE, owner)
                 ContentKnowledge.objects.create(
+                    owner=owner,
                     category=KnowledgeCategory.WRITING_STYLE,
                     title="Owner writing style",
                     content=style,
@@ -145,8 +146,9 @@ class OwnerKnowledgeForm(forms.Form):
 
             custom_instructions = self.cleaned_data["custom_instructions"].strip()
             if custom_instructions:
-                self._deactivate_dashboard_values(KnowledgeCategory.OTHER)
+                self._deactivate_dashboard_values(KnowledgeCategory.OTHER, owner)
                 ContentKnowledge.objects.create(
+                    owner=owner,
                     category=KnowledgeCategory.OTHER,
                     title="Owner custom instructions",
                     content=custom_instructions,
@@ -157,9 +159,10 @@ class OwnerKnowledgeForm(forms.Form):
 
             subject_areas = self.cleaned_data["subject_areas"]
             if subject_areas:
-                self._deactivate_dashboard_values(KnowledgeCategory.SUBJECT_AREA)
+                self._deactivate_dashboard_values(KnowledgeCategory.SUBJECT_AREA, owner)
                 for area in subject_areas:
                     ContentKnowledge.objects.create(
+                        owner=owner,
                         category=KnowledgeCategory.SUBJECT_AREA,
                         title=area[:255],
                         content=area,
@@ -169,15 +172,16 @@ class OwnerKnowledgeForm(forms.Form):
                     )
 
     @staticmethod
-    def _deactivate_dashboard_values(category: str) -> None:
+    def _deactivate_dashboard_values(category: str, owner: object) -> None:
         ContentKnowledge.objects.filter(
-            category=category, source__startswith="owner-dashboard:", is_active=True
+            owner=owner, category=category, source__startswith="owner-dashboard:", is_active=True
         ).update(is_active=False)
 
     @staticmethod
-    def _save_facts(category: str, facts: list[tuple[str, str]]) -> None:
+    def _save_facts(category: str, facts: list[tuple[str, str]], owner: object) -> None:
         for fact, source in facts:
             ContentKnowledge.objects.create(
+                owner=owner,
                 category=category,
                 title=fact[:255],
                 content=fact,

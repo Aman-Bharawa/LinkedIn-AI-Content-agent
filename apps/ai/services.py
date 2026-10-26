@@ -10,7 +10,7 @@ from typing import Any
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 from google import genai
 
@@ -129,15 +129,17 @@ def _review_schema() -> dict[str, Any]:
     }
 
 
-def _recent_topic_titles() -> list[str]:
+def _recent_topic_titles(owner: Any = None) -> list[str]:
     cutoff = timezone.now() - timedelta(days=RECENT_TOPIC_DAYS)
     stored = list(
-        ContentTopic.objects.filter(is_active=True)
+        ContentTopic.objects.filter(is_active=True).filter(
+            models.Q(owner=owner) | models.Q(owner__isnull=True)
+        )
         .order_by("-last_used_at", "-created_at")
         .values_list("title", flat=True)[:100]
     )
     posts = list(
-        LinkedInPost.objects.filter(created_at__gte=cutoff)
+        LinkedInPost.objects.filter(owner=owner, created_at__gte=cutoff)
         .exclude(topic="")
         .order_by("-created_at")
         .values_list("topic", flat=True)[:100]
@@ -162,7 +164,7 @@ def _is_duplicate_topic(title: str, recent_titles: list[str]) -> bool:
     return False
 
 
-def select_topic(keyword: str = "") -> SelectedTopic:
+def select_topic(keyword: str = "", *, owner: Any = None) -> SelectedTopic:
     """Select and persist one nonduplicate topic using the configured strategy and knowledge."""
     api_key = settings.GEMINI_API_KEY
     model = settings.GEMINI_MODEL
@@ -180,7 +182,7 @@ def select_topic(keyword: str = "") -> SelectedTopic:
     pillar_names = dict(
         ContentPillar.objects.filter(slug__in=pillar_slugs).values_list("slug", "name")
     )
-    recent_titles = _recent_topic_titles()
+    recent_titles = _recent_topic_titles(owner)
     recent_json = json.dumps(recent_titles[-50:], ensure_ascii=False)
     strategy_json = json.dumps(
         [
@@ -204,7 +206,7 @@ Allowed formats: {json.dumps(list(ContentFormat.values))}
 Recently used topics to avoid: {recent_json}
 
 Verified knowledge and writing rules:
-{_knowledge_prompt()}
+{_knowledge_prompt(owner)}
 
 Return a concise topic title, pillar slug, a specific angle, and format."""
     for _attempt in range(MAX_TOPIC_ATTEMPTS):
@@ -248,6 +250,7 @@ Return a concise topic title, pillar slug, a specific angle, and format."""
         try:
             with transaction.atomic():
                 topic = ContentTopic.objects.create(
+                    owner=owner,
                     title=title,
                     angle=angle,
                     pillar_id=ContentPillar.objects.only("pk").get(slug=pillar_slug).pk,
@@ -270,7 +273,7 @@ Return a concise topic title, pillar slug, a specific angle, and format."""
     )
 
 
-def suggest_topic_idea(*, exclude_topic: str = "") -> str:
+def suggest_topic_idea(*, owner: Any = None, exclude_topic: str = "") -> str:
     """Ask Gemini for a fresh, nonduplicate topic suggestion without saving it."""
     api_key = settings.GEMINI_API_KEY
     model = settings.GEMINI_MODEL
@@ -288,7 +291,7 @@ def suggest_topic_idea(*, exclude_topic: str = "") -> str:
     pillar_names = dict(
         ContentPillar.objects.filter(slug__in=pillar_slugs).values_list("slug", "name")
     )
-    recent_titles = _recent_topic_titles()
+    recent_titles = _recent_topic_titles(owner)
     if exclude_topic.strip():
         recent_titles.append(exclude_topic.strip()[:255])
     strategy_json = json.dumps(
@@ -312,7 +315,7 @@ Allowed formats: {json.dumps(list(ContentFormat.values))}
 Recently used topics to avoid: {json.dumps(recent_titles[-50:], ensure_ascii=False)}
 
 Verified knowledge and writing rules:
-{_knowledge_prompt()}
+{_knowledge_prompt(owner)}
 """
     for _attempt in range(MAX_TOPIC_ATTEMPTS):
         try:
@@ -360,8 +363,8 @@ Verified knowledge and writing rules:
     )
 
 
-def _knowledge_prompt() -> str:
-    context = load_knowledge_context()
+def _knowledge_prompt(owner: Any = None) -> str:
+    context = load_knowledge_context(owner=owner)
     sections = [
         "Verified founder facts (the only personal facts you may state):\n"
         + ("\n".join(f"- {fact}" for fact in context.founder_facts) or "(none supplied)"),
@@ -385,9 +388,10 @@ def _knowledge_prompt() -> str:
     return "\n\n".join(sections)
 
 
-def _recent_post_context() -> str:
+def _recent_post_context(owner: Any = None) -> str:
     posts = (
-        LinkedInPost.objects.exclude(status=PostStatus.FAILED)
+        LinkedInPost.objects.filter(owner=owner)
+        .exclude(status=PostStatus.FAILED)
         .exclude(content="")
         .order_by("-created_at")
         .values_list("topic", "content")[:5]
@@ -399,7 +403,13 @@ def _recent_post_context() -> str:
 
 
 def review_linkedin_post(
-    *, topic: str, pillar: str, hook: str, content: str, hashtags: list[str]
+    *,
+    owner: Any = None,
+    topic: str,
+    pillar: str,
+    hook: str,
+    content: str,
+    hashtags: list[str],
 ) -> ReviewResult:
     """Score draft quality and risk; unsupported claims always block the AI pass result."""
     api_key = settings.GEMINI_API_KEY
@@ -420,10 +430,10 @@ Body: {content}
 Hashtags: {json.dumps(hashtags)}
 
 Verified knowledge and writing rules:
-{_knowledge_prompt()}
+{_knowledge_prompt(owner)}
 
 Recent posts for repetition comparison:
-{_recent_post_context()}
+{_recent_post_context(owner)}
 
 Score all criteria and return any unsupported factual claims verbatim or by clear summary."""
     try:
@@ -509,14 +519,16 @@ Score all criteria and return any unsupported factual claims verbatim or by clea
 
 
 def generate_linkedin_post(
-    selected_topic: SelectedTopic, *, review_guidance: str = ""
+    selected_topic: SelectedTopic, *, owner: Any = None, review_guidance: str = ""
 ) -> GeneratedDraft:
     """Generate post copy for a saved topic; the model cannot replace its topic or pillar."""
     api_key = settings.GEMINI_API_KEY
     model = settings.GEMINI_MODEL
     if not api_key or not model:
         raise DraftGenerationError("AI generation is not configured. Set GEMINI_API_KEY in .env.")
-    topic = ContentTopic.objects.select_related("pillar").filter(pk=selected_topic.topic_id).first()
+    topic = ContentTopic.objects.select_related("pillar").filter(
+        pk=selected_topic.topic_id
+    ).filter(models.Q(owner=owner) | models.Q(owner__isnull=True)).first()
     if topic is None or topic.title != selected_topic.title:
         raise DraftGenerationError(
             "The selected topic is no longer available. Please select again."
@@ -529,7 +541,7 @@ paragraphs and return only the requested structured fields. Keep the topic and p
 provided; never substitute a different topic. The human owner will review every draft.
 
 Project knowledge and writing guidance:
-""" + _knowledge_prompt()
+""" + _knowledge_prompt(owner)
 
     user_prompt = f"""Write one LinkedIn post using this already-selected topic.
 Topic: {selected_topic.title}
@@ -538,7 +550,7 @@ Angle: {selected_topic.angle}
 Post structure: {selected_topic.post_format}
 
 Recent posts for repetition avoidance (do not copy them):
-{_recent_post_context()}
+{_recent_post_context(owner)}
 
 Return a one-sentence hook, body that does not repeat the hook, and up to 5 relevant hashtags
 without # characters. Do not repeat the topic as a headline. Do not include unsupported claims;
@@ -594,9 +606,11 @@ if the angle would require one, frame it as a general lesson or principle instea
     )
 
 
-def generate_linkedin_draft(keyword: str) -> GeneratedDraft:
+def generate_linkedin_draft(keyword: str, *, owner: Any = None) -> GeneratedDraft:
     """Select a topic, generate its draft, and mark the topic as used."""
-    selected_topic = select_topic(keyword)
-    draft = generate_linkedin_post(selected_topic)
-    ContentTopic.objects.get(pk=selected_topic.topic_id).mark_used()
+    selected_topic = select_topic(keyword, owner=owner)
+    draft = generate_linkedin_post(selected_topic, owner=owner)
+    topic = ContentTopic.objects.filter(pk=selected_topic.topic_id, owner=owner).first()
+    if topic is not None:
+        topic.mark_used()
     return draft

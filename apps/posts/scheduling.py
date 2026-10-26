@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import secrets
 from datetime import date, datetime, time, timedelta
+from typing import Any
 
 from django.db import transaction
 from django.utils import timezone
@@ -42,13 +43,14 @@ def _within_window(value: datetime, settings: PublicationScheduleSettings) -> bo
 
 
 @transaction.atomic
-def refresh_publication_queue() -> int:
-    """Keep approved posts in approval order, with at most one assigned per local day."""
-    schedule = PublicationScheduleSettings.get_solo()
+def refresh_publication_queue(*, owner: Any) -> int:
+    """Keep one user's approved posts in order, at most one assigned per local day."""
+    schedule = PublicationScheduleSettings.get_for_user(owner)
     now = timezone.now()
     today = timezone.localtime(now).date()
 
     dispatched_posts = LinkedInPost.objects.filter(
+        owner=owner,
         status=PostStatus.APPROVED,
         publication_queued_at__isnull=False,
         scheduled_for__isnull=False,
@@ -65,26 +67,32 @@ def refresh_publication_queue() -> int:
     # consumes today's slot even after its status changes from Approved.
     occupied_days.update(
         timezone.localtime(value).date()
-        for value in LinkedInPost.objects.filter(published_at__date=today).values_list(
+        for value in LinkedInPost.objects.filter(
+            owner=owner, published_at__date=today
+        ).values_list(
             "published_at", flat=True
         )
     )
     occupied_days.update(
         timezone.localtime(value).date()
-        for value in PostPublication.objects.filter(started_at__date=today).values_list(
+        for value in PostPublication.objects.filter(
+            post__owner=owner, started_at__date=today
+        ).values_list(
             "started_at", flat=True
         )
     )
-    if PostPublication.objects.filter(status__in=ACTIVE_PUBLICATION_STATUSES).exists():
+    if PostPublication.objects.filter(
+        post__owner=owner, status__in=ACTIVE_PUBLICATION_STATUSES
+    ).exists():
         occupied_days.add(today)
 
     posts = list(
         LinkedInPost.objects.select_for_update()
         .filter(
+            owner=owner,
             status=PostStatus.APPROVED,
             publication_queued_at__isnull=True,
             approved_by__is_active=True,
-            approved_by__is_superuser=True,
             pillar__isnull=False,
         )
         .exclude(content="")

@@ -31,8 +31,10 @@ Never pass the client secret or access token to a user-facing page or log.
 2. Before routing traffic, run `python manage.py migrate --noinput` once as a release job.
 3. Run `python manage.py collectstatic --noinput` during image/release preparation.
 4. Run `python manage.py check --deploy` with production settings and actual deployment values.
-5. Create the owner with `python manage.py createsuperuser`, then sign in and connect LinkedIn.
-6. Verify `/health/` and `/health/ready/`, owner login, a generated draft, and a worker task. Do
+5. Register each application user at `/accounts/sign-up/` (or keep an existing superuser), then
+   sign in and connect each user's own LinkedIn account. Users have separate posts, knowledge,
+   morning topics, and publishing schedules.
+6. Verify `/health/` and `/health/ready/`, sign-in, a generated draft, and a worker task. Do
    not use a real publish action as a deployment smoke test; verify publishing with a mock first.
 7. Confirm approval requires a future publication time and the detail page offers reschedule/cancel
    before publishing starts. The 08:00 Beat task queues two drafts from the owner's topic pool for
