@@ -182,10 +182,13 @@ def test_morning_scheduler_uses_two_distinct_owner_topics_once_per_date(owner, p
         approved_by_ai=True,
         model="test-reviewer",
     )
-    topic = ContentTopic.objects.create(title="An auto topic", pillar=pillar)
+    topic = ContentTopic.objects.create(owner=owner, title="An auto topic", pillar=pillar)
     draft.content_topic_id = topic.pk
     MorningTopic.objects.bulk_create(
-        [MorningTopic(topic="AI in product design"), MorningTopic(topic="C++ performance")]
+        [
+            MorningTopic(owner=owner, topic="AI in product design"),
+            MorningTopic(owner=owner, topic="C++ performance"),
+        ]
     )
     with (
         mock.patch("apps.posts.tasks.timezone.localdate", return_value=date(2026, 10, 15)),
@@ -209,8 +212,6 @@ def test_morning_scheduler_uses_two_distinct_owner_topics_once_per_date(owner, p
         run.status == ScheduledDraftRun.Status.SUCCEEDED for run in ScheduledDraftRun.objects.all()
     )
 
-    # Removing a post in Django Admin sets the slot's post FK to NULL. A later
-    # explicit run should treat those successful-but-empty slots as missing.
     for post in posts:
         post.delete()
 

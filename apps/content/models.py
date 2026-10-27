@@ -219,7 +219,6 @@ class ContentKnowledge(TimeStampedModel):
                 condition=models.Q(category__in=KnowledgeCategory.values),
                 name="knowledge_category_valid",
             ),
-            # Provenance is mandatory for anything treated as verified fact.
             models.CheckConstraint(
                 condition=models.Q(is_verified=False)
                 | (~models.Q(source="") & models.Q(verified_at__isnull=False)),

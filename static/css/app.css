@@ -181,7 +181,7 @@ body.app-body {
 .pagination .page-link { border-color: var(--line); border-radius: 5px!important; color: #cbc6f5; background: var(--surface); font-size: .76rem; }
 .pagination .disabled .page-link { color: var(--quiet); background: #1b1c1f; }
 
-/* Dark surfaces for the detail and edit screens too. */
+
 .card,.list-group-item { border-color: var(--line); color: var(--ink); background: var(--surface); }
 .table { --bs-table-bg: var(--surface); --bs-table-color: var(--ink); --bs-table-border-color: var(--line); }
 .form-control,.form-select { border-color: #45464c; color: var(--ink); background-color: #191a1d; }

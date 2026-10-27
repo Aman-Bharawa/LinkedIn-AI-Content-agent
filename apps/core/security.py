@@ -22,8 +22,6 @@ from django.core.exceptions import ImproperlyConfigured
 from django.core.signals import setting_changed
 from django.db import models
 
-# --- Masked secret values ------------------------------------------------------
-
 
 class SecretValue:
     """A decrypted secret that refuses to print itself.
@@ -59,9 +57,6 @@ class SecretValue:
         return NotImplemented
 
     __hash__ = None  # type: ignore[assignment]
-
-
-# --- Encryption ----------------------------------------------------------------
 
 
 class TokenDecryptionError(Exception):
@@ -138,8 +133,6 @@ class EncryptedTextField(models.TextField):
         return SecretValue.MASK
 
 
-# --- Redaction -----------------------------------------------------------------
-
 REDACTED = "[REDACTED]"
 
 _REDACTION_PATTERNS = [
@@ -162,9 +155,6 @@ def redact_secrets(text: str, max_length: int = 1000) -> str:
     if len(text) > max_length:
         text = text[: max_length - 1] + "…"
     return text
-
-
-# --- System checks -------------------------------------------------------------
 
 
 @register(Tags.security)

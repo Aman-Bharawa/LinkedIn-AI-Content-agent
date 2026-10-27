@@ -64,9 +64,6 @@ def knowledge_dir(tmp_path: Path) -> Path:
     return tmp_path
 
 
-# --- parsing -------------------------------------------------------------------------
-
-
 def test_parse_facts_requires_source_for_verification():
     facts = parse_facts(FOUNDER_MD)
     assert [(f.text, f.source) for f in facts] == [
@@ -89,9 +86,6 @@ def test_parse_example_front_matter():
     assert meta == {"title": "T", "approved": "true"}
     assert body == "Body text"
     assert parse_example("No front matter") == ({}, "No front matter")
-
-
-# --- sync + loader -------------------------------------------------------------------
 
 
 @pytest.mark.django_db
@@ -182,21 +176,15 @@ def test_max_examples_limit(knowledge_dir):
     assert len(load_knowledge_context(max_examples=3).writing_examples) == 3
 
 
-# --- the real knowledge/ files shipped in the repo --------------------------------------
-
-
 @pytest.mark.django_db
 def test_repository_knowledge_files_load(capsys):
     call_command("sync_knowledge")
     context = load_knowledge_context()
 
-    # Brief §4: no facts were supplied as verified, so none may be invented.
     assert context.founder_facts == ()
     assert context.company_facts == ()
-    # Brief §4: the 13 approved subject areas.
     assert len(context.subject_areas) == 13
     assert "MENA startup ecosystem" in context.subject_areas
-    # Brief M2 writing rules + standard LinkedIn format.
     for rule in (
         "Short paragraphs",
         "buzzwords",
@@ -207,7 +195,6 @@ def test_repository_knowledge_files_load(capsys):
         "3,000 characters",
     ):
         assert rule in context.writing_rules, rule
-    # The README in writing_examples/ is never treated as a post.
     assert context.writing_examples == ()
     assert "subject areas: 13" in capsys.readouterr().out
 

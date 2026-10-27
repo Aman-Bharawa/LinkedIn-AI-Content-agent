@@ -60,16 +60,10 @@ def refresh_publication_queue(*, owner: Any) -> int:
         for value in dispatched_posts.values_list("scheduled_for", flat=True)
     }
     if dispatched_posts.filter(scheduled_for__lte=now).exists():
-        # A broker message can outlive its assigned day. Keep today's slot
-        # reserved until that already-dispatched post is handled.
         occupied_days.add(today)
-    # A post that reached LinkedIn, or started a publication attempt today,
-    # consumes today's slot even after its status changes from Approved.
     occupied_days.update(
         timezone.localtime(value).date()
-        for value in LinkedInPost.objects.filter(
-            owner=owner, published_at__date=today
-        ).values_list(
+        for value in LinkedInPost.objects.filter(owner=owner, published_at__date=today).values_list(
             "published_at", flat=True
         )
     )
@@ -77,9 +71,7 @@ def refresh_publication_queue(*, owner: Any) -> int:
         timezone.localtime(value).date()
         for value in PostPublication.objects.filter(
             post__owner=owner, started_at__date=today
-        ).values_list(
-            "started_at", flat=True
-        )
+        ).values_list("started_at", flat=True)
     )
     if PostPublication.objects.filter(
         post__owner=owner, status__in=ACTIVE_PUBLICATION_STATUSES

@@ -1,6 +1,3 @@
-# Local PostgreSQL and Redis for developers who use Docker.
-# Run from the repo root:  docker compose --env-file .env -f docker/docker-compose.yml up -d
-# On the owner's Windows machine, PostgreSQL 18 and Memurai run natively instead (docs/DECISIONS.md).
 services:
   web:
     build:

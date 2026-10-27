@@ -312,9 +312,7 @@ def run_morning_drafts(*, synchronous: bool, owner: Any = None) -> str:
             already_handled += int(outcome.split("already_handled_", 1)[1])
         except (IndexError, ValueError):
             continue
-    return (
-        f"completed_{completed}_failed_{failed}_already_handled_{already_handled}"
-    )
+    return f"completed_{completed}_failed_{failed}_already_handled_{already_handled}"
 
 
 def _run_morning_drafts_for_owner(owner: Any, *, synchronous: bool) -> str:
@@ -327,9 +325,6 @@ def _run_morning_drafts_for_owner(owner: Any, *, synchronous: bool) -> str:
                 owner=owner, run_date=today, run_number=run_number
             )
 
-    # Lock today's slots and attach placeholder posts before releasing the
-    # transaction. A concurrent Beat/manual invocation will then see the slots
-    # as already claimed and won't create duplicate drafts.
     claimed: list[tuple[ScheduledDraftRun, str, LinkedInPost]] = []
     already_handled = 0
     with transaction.atomic():
@@ -456,7 +451,6 @@ def recover_stale_work(self: Any) -> dict[str, int]:
             )
             recovered_generation += 1
         except InvalidTransition:
-            # A concurrent worker may have completed between selection and transition.
             continue
 
     for publication in PostPublication.objects.filter(

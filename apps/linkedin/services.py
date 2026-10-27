@@ -19,9 +19,6 @@ POSTS_URL = "https://api.linkedin.com/rest/posts"
 REQUIRED_SCOPES = ("openid", "profile", "w_member_social")
 PUBLISH_SCOPES = ("w_member_social",)
 
-# LinkedIn's Posts API parses commentary using Little Text Format. Escape its
-# reserved characters when they are part of ordinary user text, or punctuation
-# such as parentheses can be interpreted as markup and truncate the post.
 _LITTLE_TEXT_RESERVED = frozenset(r"|{}@[]()<>#\*_~")
 
 
@@ -29,8 +26,7 @@ def escape_little_text(text: str, *, preserve_hashtag_marker: bool = False) -> s
     """Escape plain text for the LinkedIn Posts API's Little Text Format."""
     return "".join(
         "\\" + char
-        if char in _LITTLE_TEXT_RESERVED
-        and not (preserve_hashtag_marker and char == "#")
+        if char in _LITTLE_TEXT_RESERVED and not (preserve_hashtag_marker and char == "#")
         else char
         for char in text
     )
@@ -71,7 +67,6 @@ def _request(
             parsed = json.loads(body) if body else {}
             return response.status, dict(response.headers.items()), parsed
     except HTTPError as exc:
-        # Do not surface the response body: providers sometimes echo request data.
         raise LinkedInServiceError(f"LinkedIn returned HTTP {exc.code}.") from None
     except (URLError, TimeoutError, OSError):
         raise LinkedInServiceError("LinkedIn could not be reached.") from None
@@ -117,9 +112,6 @@ def exchange_code(code: str) -> OAuthToken:
     if not isinstance(access, str) or not access or not isinstance(expires, int) or expires <= 0:
         raise LinkedInServiceError("LinkedIn returned an incomplete token response.")
     scope_value = payload.get("scope", "")
-    # LinkedIn documents space-delimited scope values, while its token
-    # inspection tooling can report the same scopes comma-delimited. Accept
-    # both representations so granted permissions aren't falsely rejected.
     scopes = (
         tuple(scope for scope in re.split(r"[\s,]+", unquote(scope_value).strip()) if scope)
         if isinstance(scope_value, str)

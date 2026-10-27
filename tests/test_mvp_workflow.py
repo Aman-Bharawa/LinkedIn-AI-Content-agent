@@ -136,7 +136,7 @@ def test_owner_can_edit_then_approve_post_with_original_preserved(client, owner,
     assert post.status == PostStatus.APPROVED
     assert post.approved_by == owner
     assert post.scheduled_for is not None
-    schedule = PublicationScheduleSettings.get_solo()
+    schedule = PublicationScheduleSettings.get_for_user(owner)
     scheduled_local = timezone.localtime(post.scheduled_for)
     assert schedule.window_start <= scheduled_local.time() <= schedule.window_end
 
@@ -153,7 +153,7 @@ def test_reject_removes_post_from_queue_but_keeps_history(client, owner, post):
     assert LinkedInPost.objects.filter(pk=post.pk).exists()
 
 
-def test_dashboard_requires_owner(client):
+def test_dashboard_requires_login(client):
     assert client.get(reverse("core:home")).status_code == 302
     assert client.get(reverse("core:posts-dashboard")).status_code == 302
 
@@ -210,11 +210,11 @@ def test_owner_can_manually_regenerate_with_attempt_cap_and_original_preserved(
 
 
 @pytest.mark.django_db
-def test_non_owner_cannot_generate_or_review(client, staff_user, post):
+def test_active_user_can_use_app_but_cannot_access_another_users_posts(client, staff_user, post):
     client.force_login(staff_user)
-    assert client.get(reverse("core:home")).status_code == 403
-    assert client.get(reverse("posts:detail", args=[post.pk])).status_code == 403
-    assert client.post(reverse("posts:approve", args=[post.pk])).status_code == 403
+    assert client.get(reverse("core:home")).status_code == 200
+    assert client.get(reverse("posts:detail", args=[post.pk])).status_code == 404
+    assert client.post(reverse("posts:approve", args=[post.pk])).status_code == 404
 
 
 @pytest.mark.django_db

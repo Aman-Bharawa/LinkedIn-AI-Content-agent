@@ -78,12 +78,10 @@ def callback(request: HttpRequest) -> HttpResponse:
     member_urn = f"urn:li:person:{subject}"
     with transaction.atomic():
         LinkedInAccount.objects.select_for_update().filter(
-            owner=request.user, is_active=True
-        ).update(
-            is_active=False, disconnected_at=now
-        )
+            owner=cast(Any, request.user), is_active=True
+        ).update(is_active=False, disconnected_at=now)
         account, _ = LinkedInAccount.objects.update_or_create(
-            owner=request.user,
+            owner=cast(Any, request.user),
             member_urn=member_urn,
             defaults={
                 "access_token": token.access_token,
@@ -116,7 +114,7 @@ def disconnect(request: HttpRequest) -> HttpResponse:
     denied = _owner_denied(request)
     if denied:
         return denied
-    account = LinkedInAccount.objects.filter(owner=request.user, is_active=True).first()
+    account = LinkedInAccount.objects.filter(owner=cast(Any, request.user), is_active=True).first()
     if account:
         account.is_active = False
         account.disconnected_at = timezone.now()

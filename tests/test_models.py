@@ -41,9 +41,6 @@ def set_status(post, status, **extra):
     return LinkedInPost.objects.filter(pk=post.pk).update(status=status, **extra)
 
 
-# --- content -----------------------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     ("a", "b"),
     [
@@ -139,9 +136,6 @@ def test_only_active_owner_approved_examples_are_usable(db):
     assert list(WritingExample.objects.usable()) == [good]
 
 
-# --- posts: status and constraints ------------------------------------------------
-
-
 def test_all_brief_statuses_exist():
     assert set(PostStatus.values) == {
         "draft",
@@ -221,7 +215,7 @@ def test_original_ai_content_is_write_once(post):
         fresh.save()
     fresh.original_ai_content = "First draft"
     fresh.content = "Owner edit"
-    fresh.save()  # other fields stay editable
+    fresh.save()
 
 
 def test_hashtags_normalized_and_validated(post):
@@ -251,9 +245,6 @@ def test_dashboard_indexes_exist(db):
         "post_pillar_created_idx",
         "post_created_idx",
     } <= index_names
-
-
-# --- reviews -----------------------------------------------------------------------
 
 
 def make_review(post, **overrides):
@@ -288,9 +279,6 @@ def test_unsupported_claims_block_ai_approval(post):
     assert violates(lambda: make_review(post, unsupported_claims=["x"], approved_by_ai=True))
 
 
-# --- versions ----------------------------------------------------------------------
-
-
 def test_versions_are_numbered_and_immutable(post, owner):
     original = PostVersion.objects.create(
         post=post, kind="ai_generated", content="AI text", ai_model="m", prompt_version="v1"
@@ -315,14 +303,10 @@ def test_only_one_original_and_one_final_version(post):
     )
 
 
-# --- publications ------------------------------------------------------------------
-
-
 def test_one_active_publication_attempt_per_post(post):
     PostPublication.objects.create(post=post, status="in_progress")
     for status in ("pending", "in_progress", "unknown"):
         assert violates(lambda s=status: PostPublication.objects.create(post=post, status=s))
-    # Finished attempts don't block history.
     PostPublication.objects.create(post=post, status="failed")
 
 

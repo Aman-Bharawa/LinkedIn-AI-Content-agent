@@ -1,3 +1,5 @@
+from typing import Any
+
 from django import forms
 
 from .models import ContentKnowledge, KnowledgeCategory
@@ -114,7 +116,7 @@ class OwnerKnowledgeForm(forms.Form):
             line.strip() for line in self.cleaned_data["subject_areas"].splitlines() if line.strip()
         ]
 
-    def save(self, *, owner: object) -> None:
+    def save(self, *, owner: Any) -> None:
         if not self.is_valid():
             raise ValueError("Call save() only after the form has validated.")
 
@@ -172,13 +174,13 @@ class OwnerKnowledgeForm(forms.Form):
                     )
 
     @staticmethod
-    def _deactivate_dashboard_values(category: str, owner: object) -> None:
+    def _deactivate_dashboard_values(category: str, owner: Any) -> None:
         ContentKnowledge.objects.filter(
             owner=owner, category=category, source__startswith="owner-dashboard:", is_active=True
         ).update(is_active=False)
 
     @staticmethod
-    def _save_facts(category: str, facts: list[tuple[str, str]], owner: object) -> None:
+    def _save_facts(category: str, facts: list[tuple[str, str]], owner: Any) -> None:
         for fact, source in facts:
             ContentKnowledge.objects.create(
                 owner=owner,

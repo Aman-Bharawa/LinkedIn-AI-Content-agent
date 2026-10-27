@@ -12,10 +12,7 @@ from django.db import models
 from apps.core.models import TimeStampedModel
 from apps.core.security import redact_secrets
 
-# One automatic generation/review pass per request. Explicit owner regenerations
-# remain available up to the lifetime cap below.
 MAX_AUTOMATIC_GENERATION_ATTEMPTS = 1
-# Brief M6: maximum three generation attempts per post, including owner regenerations.
 MAX_GENERATION_ATTEMPTS = 3
 
 SCORE_MIN = 0
@@ -84,14 +81,12 @@ class PostOrigin(models.TextChoices):
     AUTO = "auto", "Auto draft"
 
 
-# Statuses where the post must have real content and a pillar.
 CONTENT_REQUIRED_STATUSES = (
     PostStatus.PENDING_APPROVAL,
     PostStatus.APPROVED,
     PostStatus.PUBLISHING,
     PostStatus.PUBLISHED,
 )
-# Statuses only reachable after an explicit owner approval.
 APPROVAL_REQUIRED_STATUSES = (
     PostStatus.APPROVED,
     PostStatus.PUBLISHING,
@@ -206,8 +201,6 @@ class LinkedInPost(TimeStampedModel):
                 | (models.Q(pillar__isnull=False) & ~models.Q(content="")),
                 name="post_content_required_for_review_and_publish",
             ),
-            # Database-level guarantee: nothing is approved/publishing/published
-            # without a recorded owner approval.
             models.CheckConstraint(
                 condition=~models.Q(status__in=APPROVAL_REQUIRED_STATUSES)
                 | models.Q(approved_by__isnull=False, approved_at__isnull=False),
@@ -231,7 +224,6 @@ class LinkedInPost(TimeStampedModel):
     def __str__(self) -> str:
         return self.topic or f"Post #{self.pk}"
 
-    # Value of original_ai_content as loaded from the database (write-once guard).
     _loaded_original_ai_content: str | None = None
 
     @classmethod
@@ -260,10 +252,6 @@ class LinkedInPost(TimeStampedModel):
         return self.status == PostStatus.APPROVED and self.approved_by_id is not None
 
 
-# --- Reviews -----------------------------------------------------------------
-
-# Score direction (brief §5): quality scores are higher-is-better,
-# risk scores are higher-is-worse. Thresholds are configured in Milestone 6.
 QUALITY_SCORE_FIELDS = (
     "authenticity_score",
     "usefulness_score",
@@ -331,7 +319,6 @@ class PostReview(models.Model):
                 ),
                 name="review_attempt_number_range",
             ),
-            # An unsupported claim always blocks AI approval.
             models.CheckConstraint(
                 condition=~models.Q(approved_by_ai=True, has_unsupported_claims=True),
                 name="review_unsupported_claims_block_ai_approval",
@@ -348,9 +335,6 @@ class PostReview(models.Model):
         if self.unsupported_claims:
             self.has_unsupported_claims = True
         super().save(*args, **kwargs)
-
-
-# --- Versions ----------------------------------------------------------------
 
 
 class VersionKind(models.TextChoices):
@@ -418,9 +402,6 @@ class PostVersion(models.Model):
         super().save(*args, **kwargs)
 
 
-# --- Publications ------------------------------------------------------------
-
-
 class PublicationStatus(models.TextChoices):
     PENDING = "pending", "Pending"
     IN_PROGRESS = "in_progress", "In progress"
@@ -429,7 +410,6 @@ class PublicationStatus(models.TextChoices):
     UNKNOWN = "unknown", "Outcome unknown (needs reconciliation)"
 
 
-# An attempt in any of these states blocks starting another one for the same post.
 ACTIVE_PUBLICATION_STATUSES = (
     PublicationStatus.PENDING,
     PublicationStatus.IN_PROGRESS,

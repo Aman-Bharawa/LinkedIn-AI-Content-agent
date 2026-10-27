@@ -10,9 +10,10 @@ decisions taken at kickoff (brief section 12).
 |---|---|
 | Codebase | Fresh Python implementation. There is no Rails prototype or data to migrate. |
 | Users | Single owner (brief section 2). |
+| Multi-user support (updated 2026-10-26) | Public registration is enabled, and each active user has an isolated workspace for LinkedIn accounts, posts, knowledge, topics, and publishing settings. | Added at the owner's request; worker tasks carry or resolve an explicit workspace owner. |
 | Owner timezone | `Asia/Kolkata`. Times are stored in UTC and shown/scheduled in IST. |
 | Workflow (brief amended 2026-10-14, 2026-10-19) | Owner keyword → AI post → approval queue → approve with a future publish time or reject. Weekday 08:00 auto-draft job kept. Posts tagged **Keyword** or **Auto draft**. Scheduled publishing only runs after explicit owner approval and time selection. |
-| UI library | Bootstrap 5.3 (CSS + JS) with Django templates and HTMX, at the owner's request. |
+| UI library | Bootstrap 5.3 CSS and JS served locally with Django templates. HTMX was initially selected, then removed after review found no HTMX attributes or requests in use. |
 | Python environment | Project-local `.venv` managed by `uv`; versions pinned in `uv.lock`. |
 | Verified facts / writing samples | Not supplied yet. `founder.md` and `company.md` ship with no facts; `writing_examples/` is empty. The owner adds them later. |
 | Morning auto-drafts (updated 2026-10-22) | At 08:00 Asia/Kolkata daily, generate two drafts using different random keywords from the owner's saved Morning topics pool. Drafts always wait for manual review and are never approved or published automatically. Celery Beat remains supported; a Windows management command can run the same generation flow directly without Celery or Redis. |
@@ -31,7 +32,7 @@ decisions taken at kickoff (brief section 12).
 | M7 dashboard at `/admin/posts` | Django's built-in admin is mounted at `/django-admin/` | Keeps `/admin/` free for the owner dashboard required by M7. |
 | §8 Owner-only pages | Every non-health page uses `login_required`. Until M7 adds the owner login page, `LOGIN_URL` points to Django admin's login. | No public pages in V1. Health endpoints stay public and expose only ok/unavailable. |
 | M0 Health endpoint | `/health/` (liveness, no dependencies) and `/health/ready/` (PostgreSQL and Redis). | Readiness is needed again in M13; error details are never returned. |
-| Front-end assets | Bootstrap 5.3.8 and HTMX 2.0.7 vendored under `static/vendor/` with SHA-256s in `VENDOR.md`. | No runtime CDN dependency; allows a strict Content Security Policy in M13. |
+| Front-end assets | Bootstrap 5.3.8 is vendored under `static/vendor/` with SHA-256s in `VENDOR.md`. | No runtime CDN dependency; allows a strict Content Security Policy in M13. |
 | Celery worker on Windows | Run with `--pool=solo`. | Celery's default prefork pool is not supported on Windows. Production (Linux containers) uses the default. |
 | §5 "topic and content pillar" (M1) | `ContentPillar` table created in M1; posts and topics reference it by foreign key. M3 adds groups, weights and the 13 initial pillars. | Real foreign keys keep pillar data consistent; avoids a free-text pillar that M3 would have to migrate. |
 | §5 LinkedInPost topic | `topic` (editable text) plus optional `content_topic` link to `ContentTopic`. | Owner can edit the topic text (M8) while selection history stays linked. |
@@ -39,7 +40,7 @@ decisions taken at kickoff (brief section 12).
 | §5 WritingExample | Adds `is_owner_approved`; only active + owner-approved examples are usable. | Enforces "only authentic, founder-approved examples" in data, not just convention. |
 | §5 ContentKnowledge | Verified knowledge must have a `source` (database constraint) and records `verified_at`. | Provenance is mandatory for anything used as fact. |
 | §5 PostReview scores | 0–10 integers. Quality: authenticity, usefulness, originality, founder voice, clarity, hook quality, overall (higher = better). Risk: AI-like, promotional, repetition (higher = worse). Thresholds come in M6. | Brief requires explicit direction; hook quality and repetition come from the M6 review criteria. |
-| §5 Owner approval | Owner = active superuser. Database constraint: approved/publishing/published posts must have `approved_by` + `approved_at`. Approval is cleared if the post leaves the approval path (e.g. publishing fails). | AI approval can never substitute for owner approval, enforced in both code and database. |
+| §5 Owner approval | The authenticated workspace owner must approve. Database constraint: approved/publishing/published posts must have `approved_by` + `approved_at`. Approval is cleared if the post leaves the approval path (e.g. publishing fails). | AI approval can never substitute for user approval, enforced in both code and database. |
 | §5 State machine | `apps/posts/state.py` `transition_post()` with row locking. Only `approved → publishing`; `publishing` timeouts go to `needs_manual_review`, never back to retry. | Brief §5, §7 and M10 safety rules. |
 | M6 "maximum three attempts" | Database constraint `generation_attempts <= 3` on posts and `attempt_number` 1–3 on reviews. | The retry limit can't be bypassed by a bug. |
 | §5 PostPublication | Partial unique constraints: one active attempt (pending/in progress/unknown) and one success per post; unique `idempotency_key`; error text redacted on save. | One active attempt per post, idempotent operations, safe error details. |

@@ -31,8 +31,9 @@ def pillar(db):
 
 
 @pytest.fixture
-def post(pillar):
+def post(pillar, owner):
     return LinkedInPost.objects.create(
+        owner=owner,
         topic="Shipping small",
         pillar=pillar,
         hook="Most MVPs are too big.",
@@ -43,8 +44,9 @@ def post(pillar):
 
 
 @pytest.fixture
-def account(db):
+def account(db, owner):
     return LinkedInAccount.objects.create(
+        owner=owner,
         member_urn="urn:li:person:abc123",
         access_token=ACCESS_TOKEN,
         refresh_token=REFRESH_TOKEN,

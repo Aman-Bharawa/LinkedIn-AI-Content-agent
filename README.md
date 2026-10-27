@@ -1,6 +1,6 @@
 # LinkedIn AI Content Agent
 
-Single-owner Django app that plans, generates, reviews and (after explicit owner approval)
+Multi-user Django app that lets each user plan, generate, review and (after explicit approval)
 publishes LinkedIn posts through LinkedIn's official API. Built milestone by milestone from
 the implementation brief.
 
@@ -16,7 +16,7 @@ hosting resources. See [deployment runbook](docs/DEPLOYMENT.md).
 | Area | Choice |
 |---|---|
 | Language | Python 3.13 (managed by `uv`, see `.python-version`) |
-| Web | Django 5.2 LTS, server-rendered templates, Bootstrap 5.3, HTMX |
+| Web | Django 5.2 LTS, server-rendered templates, Bootstrap 5.3 |
 | Database | PostgreSQL 16+ (local: PostgreSQL 18) |
 | Background work | Celery 5.6 with Redis (local on Windows: Memurai) |
 | Quality | pytest, pytest-django, Ruff, mypy + django-stubs, Bandit, pip-audit |
@@ -31,8 +31,8 @@ apps/content/     weighted strategy groups, pillars, topics, verified knowledge,
 apps/posts/       posts, reviews, versions, publications, Celery tasks, status state machine
 apps/linkedin/    LinkedIn OAuth, member identity, official Posts API client and publish task
 apps/ai/          Gemini API draft generation and quality review using verified knowledge
-templates/        base.html (Bootstrap + HTMX) and page templates
-static/vendor/    pinned Bootstrap and HTMX files (see VENDOR.md)
+templates/        base.html (Bootstrap) and page templates
+static/vendor/    pinned Bootstrap files (see VENDOR.md)
 tests/            pytest suite
 knowledge/        founder/company facts, writing style, real writing examples (Markdown)
 docker/           Dockerfile and Compose web, worker, Beat, PostgreSQL and Redis services

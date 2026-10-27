@@ -3,7 +3,6 @@ from django.http import HttpRequest
 
 from .models import LinkedInAccount
 
-# Fields shown anywhere in admin. Tokens are deliberately absent.
 SAFE_FIELDS = (
     "member_urn",
     "is_active",
@@ -25,7 +24,6 @@ class LinkedInAccountAdmin(admin.ModelAdmin):
     readonly_fields = SAFE_FIELDS
     exclude = ("access_token", "refresh_token")
 
-    # Accounts are created only through the LinkedIn OAuth flow (Milestone 9).
     def has_add_permission(self, request: HttpRequest) -> bool:
         return False
 

@@ -77,7 +77,7 @@ class PublicationWindowForm(forms.ModelForm):
         }
 
     def clean(self):
-        cleaned_data = super().clean()
+        cleaned_data = super().clean() or {}
         start = cleaned_data.get("window_start")
         end = cleaned_data.get("window_end")
         if start is not None and end is not None and start >= end:

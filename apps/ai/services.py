@@ -132,9 +132,8 @@ def _review_schema() -> dict[str, Any]:
 def _recent_topic_titles(owner: Any = None) -> list[str]:
     cutoff = timezone.now() - timedelta(days=RECENT_TOPIC_DAYS)
     stored = list(
-        ContentTopic.objects.filter(is_active=True).filter(
-            models.Q(owner=owner) | models.Q(owner__isnull=True)
-        )
+        ContentTopic.objects.filter(is_active=True)
+        .filter(models.Q(owner=owner) | models.Q(owner__isnull=True))
         .order_by("-last_used_at", "-created_at")
         .values_list("title", flat=True)[:100]
     )
@@ -222,7 +221,6 @@ Return a concise topic title, pillar slug, a specific angle, and format."""
                 store=False,
             )
         except Exception as exc:
-            # The Interactions API can surface SDK-specific exceptions outside APIError.
             raise DraftGenerationError(
                 "The AI provider could not select a topic. Check the API configuration and retry."
             ) from exc
@@ -330,7 +328,6 @@ Verified knowledge and writing rules:
                 store=False,
             )
         except Exception as exc:
-            # Keep SDK/provider failures in the normal owner-visible task failure path.
             raise DraftGenerationError(
                 "Gemini could not suggest a topic right now. Please try again shortly."
             ) from exc
@@ -374,8 +371,7 @@ def _knowledge_prompt(owner: Any = None) -> str:
         + ("\n".join(f"- {area}" for area in context.subject_areas) or "(none configured)"),
         "Owner writing rules:\n" + (context.writing_rules or "(none configured)"),
         "Custom owner instructions (follow when consistent with verified facts and the system's "
-        "accuracy requirements):\n"
-        + (context.custom_instructions or "(none configured)"),
+        "accuracy requirements):\n" + (context.custom_instructions or "(none configured)"),
     ]
     examples = "\n\n".join(
         f"Approved authentic writing sample: {sample.title}\n{sample.content}"
@@ -451,7 +447,6 @@ Score all criteria and return any unsupported factual claims verbatim or by clea
             store=False,
         )
     except Exception as exc:
-        # The Interactions API can surface SDK-specific exceptions outside APIError.
         raise DraftGenerationError(
             "The AI provider could not review this draft. Check the API configuration and retry."
         ) from exc
@@ -526,9 +521,12 @@ def generate_linkedin_post(
     model = settings.GEMINI_MODEL
     if not api_key or not model:
         raise DraftGenerationError("AI generation is not configured. Set GEMINI_API_KEY in .env.")
-    topic = ContentTopic.objects.select_related("pillar").filter(
-        pk=selected_topic.topic_id
-    ).filter(models.Q(owner=owner) | models.Q(owner__isnull=True)).first()
+    topic = (
+        ContentTopic.objects.select_related("pillar")
+        .filter(pk=selected_topic.topic_id)
+        .filter(models.Q(owner=owner) | models.Q(owner__isnull=True))
+        .first()
+    )
     if topic is None or topic.title != selected_topic.title:
         raise DraftGenerationError(
             "The selected topic is no longer available. Please select again."
@@ -575,7 +573,6 @@ if the angle would require one, frame it as a general lesson or principle instea
             store=False,
         )
     except Exception as exc:
-        # Keep SDK/provider failures in the normal owner-visible task failure path.
         raise DraftGenerationError(
             "The AI provider could not generate a draft. Check the API configuration and retry."
         ) from exc

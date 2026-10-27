@@ -36,11 +36,13 @@ class MorningTopic(TimeStampedModel):
         ordering = ["topic"]
         constraints = [
             models.UniqueConstraint(
-                fields=["topic"], condition=models.Q(owner__isnull=True),
+                fields=["topic"],
+                condition=models.Q(owner__isnull=True),
                 name="morning_topic_global_uniq",
             ),
             models.UniqueConstraint(
-                fields=["owner", "topic"], condition=models.Q(owner__isnull=False),
+                fields=["owner", "topic"],
+                condition=models.Q(owner__isnull=False),
                 name="morning_topic_owner_uniq",
             ),
         ]
@@ -49,7 +51,6 @@ class MorningTopic(TimeStampedModel):
         return self.topic
 
 
-# Metadata keys that look like they could carry credentials are refused outright.
 _SECRET_KEY_PATTERN = re.compile(
     r"token|secret|password|authorization|bearer|api[_-]?key|cookie", re.IGNORECASE
 )

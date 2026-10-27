@@ -131,8 +131,7 @@ def publish_approved_post(self: Any, post_id: int, actor_id: int) -> str:
             post = LinkedInPost.objects.select_for_update().get(pk=post_id)
             if (
                 post.owner_id != actor.pk
-                or
-                post.status != PostStatus.APPROVED
+                or post.status != PostStatus.APPROVED
                 or not post.is_publishable
                 or post.approved_by_id != actor.pk
                 or post.scheduled_for is None
@@ -140,9 +139,11 @@ def publish_approved_post(self: Any, post_id: int, actor_id: int) -> str:
                 or post.publication_queued_at is None
             ):
                 return "post_not_due_or_not_queued"
-            account = LinkedInAccount.objects.select_for_update().filter(
-                owner=actor, is_active=True
-            ).first()
+            account = (
+                LinkedInAccount.objects.select_for_update()
+                .filter(owner=actor, is_active=True)
+                .first()
+            )
             if account is None:
                 _release_scheduled_publication(post.pk, "Connect LinkedIn to publish this post.")
                 return "linkedin_not_connected"

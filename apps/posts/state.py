@@ -30,14 +30,12 @@ ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
     S.PENDING_APPROVAL: frozenset({S.APPROVED, S.REJECTED, S.GENERATING}),
     S.NEEDS_MANUAL_REVIEW: frozenset({S.APPROVED, S.REJECTED, S.GENERATING}),
     S.APPROVED: frozenset({S.PUBLISHING, S.PENDING_APPROVAL, S.REJECTED}),
-    # From publishing, an ambiguous outcome goes to needs_manual_review, never back to retry.
     S.PUBLISHING: frozenset({S.PUBLISHED, S.FAILED, S.NEEDS_MANUAL_REVIEW}),
     S.FAILED: frozenset({S.APPROVED, S.GENERATING, S.REJECTED}),
     S.REJECTED: frozenset({S.DRAFT, S.GENERATING}),
     S.PUBLISHED: frozenset(),
 }
 
-# Transitions that only the owner may perform.
 OWNER_ONLY_TARGETS = frozenset({S.APPROVED, S.REJECTED})
 
 
@@ -86,7 +84,6 @@ def transition_post(
             locked.rejected_at = None
             locked.rejection_reason = ""
         elif to_status not in APPROVAL_REQUIRED_STATUSES:
-            # Approval is consumed: leaving the approved path requires a fresh approval.
             locked.approved_by = None
             locked.approved_at = None
 

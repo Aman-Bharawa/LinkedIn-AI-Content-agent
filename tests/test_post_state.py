@@ -52,7 +52,7 @@ def test_unapproved_posts_cannot_publish(post, status):
 
 def test_approval_requires_owner(post, staff_user):
     with pytest.raises(OwnerRequired):
-        transition_post(post, S.APPROVED)  # e.g. the AI reviewer / a task
+        transition_post(post, S.APPROVED)
     with pytest.raises(OwnerRequired):
         transition_post(post, S.APPROVED, actor=staff_user)
     post.refresh_from_db()
@@ -78,7 +78,7 @@ def test_happy_path_to_published(post, owner):
     transition_post(post, S.APPROVED, actor=owner)
     transition_post(post, S.PUBLISHING)
     with pytest.raises(InvalidTransition):
-        transition_post(post, S.PUBLISHED)  # URN required
+        transition_post(post, S.PUBLISHED)
     published = transition_post(post, S.PUBLISHED, linkedin_post_urn="urn:li:share:42")
     assert published.status == S.PUBLISHED
     assert published.published_at is not None
@@ -91,7 +91,6 @@ def test_approval_is_consumed_after_failure(post, owner):
     failed = transition_post(post, S.FAILED, reason="HTTP 500 Authorization: Bearer AQXsecret")
     assert failed.approved_by is None
     assert "AQXsecret" not in failed.last_error
-    # Retrying needs a fresh owner approval.
     with pytest.raises(InvalidTransition):
         transition_post(post, S.PUBLISHING)
     with pytest.raises(OwnerRequired):

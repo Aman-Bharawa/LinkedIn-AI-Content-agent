@@ -11,7 +11,9 @@ class SignInForm(AuthenticationForm):
 
 
 class SignUpForm(UserCreationForm):
-    email = forms.EmailField(required=True, widget=forms.EmailInput(attrs={"class": "form-control"}))
+    email = forms.EmailField(
+        required=True, widget=forms.EmailInput(attrs={"class": "form-control"})
+    )
 
     class Meta(UserCreationForm.Meta):
         model = get_user_model()

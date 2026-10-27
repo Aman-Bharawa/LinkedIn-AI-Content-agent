@@ -33,9 +33,6 @@ def raw_column(account, column):
         return cursor.fetchone()[0]
 
 
-# --- encryption ------------------------------------------------------------------
-
-
 def test_encrypt_round_trip_and_ciphertext_differs():
     ciphertext = encrypt("secret-value")
     assert ciphertext != "secret-value"
@@ -86,7 +83,7 @@ def test_key_rotation_reencrypts_with_new_key(settings, account):
     assert LinkedInAccount.objects.get(pk=account.pk).access_token.reveal() == ACCESS_TOKEN
     call_command("rotate_token_keys", stdout=io.StringIO())
 
-    settings.TOKEN_ENCRYPTION_KEYS = [new_key]  # old key retired
+    settings.TOKEN_ENCRYPTION_KEYS = [new_key]
     fresh = LinkedInAccount.objects.get(pk=account.pk)
     assert fresh.access_token.reveal() == ACCESS_TOKEN
     assert fresh.refresh_token.reveal() == REFRESH_TOKEN
@@ -101,9 +98,6 @@ def test_system_check_flags_missing_invalid_and_reused_keys(settings):
 
     settings.TOKEN_ENCRYPTION_KEYS = [settings.SECRET_KEY]
     assert "core.E002" in [m.id for m in token_encryption_keys_check()]
-
-
-# --- masking / exposure ----------------------------------------------------------
 
 
 def test_secret_value_is_masked_everywhere(account, caplog):
@@ -148,12 +142,10 @@ def test_dumpdata_masks_tokens(account, capsys):
     assert SecretValue.MASK in output
 
 
-# --- account constraints ---------------------------------------------------------
-
-
-def test_only_one_active_linkedin_account(account):
+def test_only_one_active_linkedin_account_per_owner(account):
     with pytest.raises(IntegrityError):
         LinkedInAccount.objects.create(
+            owner=account.owner,
             member_urn="urn:li:person:second",
             access_token="x",
             access_token_expires_at=timezone.now(),
@@ -164,7 +156,10 @@ def test_inactive_accounts_may_coexist(account):
     account.is_active = False
     account.save()
     LinkedInAccount.objects.create(
-        member_urn="urn:li:person:second", access_token="x", access_token_expires_at=timezone.now()
+        owner=account.owner,
+        member_urn="urn:li:person:second",
+        access_token="x",
+        access_token_expires_at=timezone.now(),
     )
     assert LinkedInAccount.objects.count() == 2
 
@@ -182,15 +177,12 @@ def test_token_expiry_helper(account):
     assert account.has_scope("w_member_social")
 
 
-def test_is_owner_requires_active_superuser(owner, staff_user):
+def test_is_owner_accepts_any_active_authenticated_user(owner, staff_user):
     assert is_owner(owner)
-    assert not is_owner(staff_user)
+    assert is_owner(staff_user)
     assert not is_owner(None)
     owner.is_active = False
     assert not is_owner(owner)
-
-
-# --- redaction / audit -----------------------------------------------------------
 
 
 @pytest.mark.parametrize(

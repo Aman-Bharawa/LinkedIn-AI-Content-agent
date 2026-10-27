@@ -1,14 +1,13 @@
 [project]
 name = "linkedin-ai-content-agent"
 version = "0.1.0"
-description = "Single-owner app to plan, generate, review, approve and publish LinkedIn posts."
+description = "Multi-user app to plan, generate, review, approve and publish LinkedIn posts."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "celery[redis]>=5.6,<5.7",
     "cryptography>=46",
     "django>=5.2,<5.3",
-    "django-bootstrap5>=26.4",
     "django-environ>=0.14.0",
     "google-genai>=2.31.0",
     "gunicorn>=23,<24",
@@ -56,7 +55,7 @@ warn_unused_ignores = true
 exclude = ["\\.venv/", "migrations/"]
 
 [[tool.mypy.overrides]]
-module = ["celery.*", "environ.*", "django_bootstrap5.*"]
+module = ["celery.*", "environ.*"]
 ignore_missing_imports = true
 
 [tool.django-stubs]

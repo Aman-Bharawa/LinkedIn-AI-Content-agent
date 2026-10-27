@@ -13,11 +13,7 @@ from apps.core.security import EncryptedTextField
 
 def is_owner(user: Any) -> bool:
     """Whether this active signed-in user may use their private workspace."""
-    return bool(
-        user is not None
-        and getattr(user, "is_authenticated", False)
-        and user.is_active
-    )
+    return bool(user is not None and getattr(user, "is_authenticated", False) and user.is_active)
 
 
 class LinkedInAccount(TimeStampedModel):
@@ -52,7 +48,6 @@ class LinkedInAccount(TimeStampedModel):
     class Meta:
         verbose_name = "LinkedIn account"
         constraints = [
-            # Each user may have only one active LinkedIn account.
             models.UniqueConstraint(
                 fields=["owner"],
                 condition=models.Q(is_active=True),

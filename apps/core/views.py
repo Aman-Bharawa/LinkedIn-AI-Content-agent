@@ -1,4 +1,5 @@
 from datetime import timedelta
+from typing import Any, cast
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -71,6 +72,7 @@ def suggest_topic(request: HttpRequest) -> JsonResponse:
 def morning_topics(request: HttpRequest) -> HttpResponse:
     if not is_owner(request.user):
         return HttpResponse("Owner access required.", status=403)
+    owner = cast(Any, request.user)
 
     if request.method == "POST" and "delete_topic" in request.POST:
         try:
@@ -78,9 +80,7 @@ def morning_topics(request: HttpRequest) -> HttpResponse:
         except (TypeError, ValueError):
             topic_id = None
         deleted, _ = (
-            MorningTopic.objects.filter(pk=topic_id, owner=request.user).delete()
-            if topic_id
-            else (0, {})
+            MorningTopic.objects.filter(pk=topic_id, owner=owner).delete() if topic_id else (0, {})
         )
         if deleted:
             messages.success(request, "Removed the topic from your morning list.")
@@ -92,12 +92,12 @@ def morning_topics(request: HttpRequest) -> HttpResponse:
         form = MorningTopicForm(request.POST)
         if form.is_valid():
             topic = form.cleaned_data["topic"]
-            if MorningTopic.objects.filter(owner=request.user, topic__iexact=topic).exists():
+            if MorningTopic.objects.filter(owner=owner, topic__iexact=topic).exists():
                 form.add_error("topic", "That topic is already in your list.")
-            elif MorningTopic.objects.filter(owner=request.user).count() >= 50:
+            elif MorningTopic.objects.filter(owner=owner).count() >= 50:
                 form.add_error("topic", "You can save up to 50 topics.")
             else:
-                MorningTopic.objects.create(owner=request.user, topic=topic)
+                MorningTopic.objects.create(owner=owner, topic=topic)
                 messages.success(request, f"Added “{topic}” to your morning topic list.")
                 return redirect("core:morning-topics")
     else:
@@ -108,8 +108,8 @@ def morning_topics(request: HttpRequest) -> HttpResponse:
         "core/morning_topics.html",
         {
             "form": form,
-            "topics": MorningTopic.objects.filter(owner=request.user),
-            "topic_count": MorningTopic.objects.filter(owner=request.user).count(),
+            "topics": MorningTopic.objects.filter(owner=owner),
+            "topic_count": MorningTopic.objects.filter(owner=owner).count(),
         },
     )
 
@@ -119,10 +119,13 @@ def morning_topics(request: HttpRequest) -> HttpResponse:
 def home(request: HttpRequest) -> HttpResponse:
     if not is_owner(request.user):
         return HttpResponse("Owner access required.", status=403)
+    owner = cast(Any, request.user)
     selected_status = request.GET.get("status", "all")
     search_term = request.GET.get("q", "").strip()[:100]
-    posts = LinkedInPost.objects.filter(owner=request.user).select_related("pillar").prefetch_related(
-        Prefetch("reviews", queryset=PostReview.objects.order_by("-reviewed_at"))
+    posts = (
+        LinkedInPost.objects.filter(owner=owner)
+        .select_related("pillar")
+        .prefetch_related(Prefetch("reviews", queryset=PostReview.objects.order_by("-reviewed_at")))
     )
     if selected_status in PostStatus.values:
         posts = posts.filter(status=selected_status)
@@ -138,24 +141,22 @@ def home(request: HttpRequest) -> HttpResponse:
         {
             "form": GeneratePostForm(),
             "page_obj": page_obj,
-            "draft_count": LinkedInPost.objects.filter(owner=request.user).count(),
-            "review_count": LinkedInPost.objects.filter(owner=request.user,
-                status__in=[PostStatus.PENDING_APPROVAL, PostStatus.NEEDS_MANUAL_REVIEW]
+            "draft_count": LinkedInPost.objects.filter(owner=owner).count(),
+            "review_count": LinkedInPost.objects.filter(
+                owner=owner,
+                status__in=[PostStatus.PENDING_APPROVAL, PostStatus.NEEDS_MANUAL_REVIEW],
             ).count(),
             "published_count": LinkedInPost.objects.filter(
-                owner=request.user, status=PostStatus.PUBLISHED
+                owner=owner, status=PostStatus.PUBLISHED
             ).count(),
             "status_choices": [("all", "All statuses"), *PostStatus.choices],
             "selected_status": selected_status,
             "search_term": search_term,
             "display_timezone": timezone.get_current_timezone_name(),
-            "publication_settings": PublicationScheduleSettings.get_for_user(request.user),
-            "linkedin_account": LinkedInAccount.objects.filter(
-                owner=request.user, is_active=True
-            ).first(),
+            "publication_settings": PublicationScheduleSettings.get_for_user(owner),
+            "linkedin_account": LinkedInAccount.objects.filter(owner=owner, is_active=True).first(),
             "scheduled_runs": ScheduledDraftRun.objects.filter(
-                owner=request.user,
-                run_date__gte=timezone.localdate() - timedelta(days=1)
+                owner=owner, run_date__gte=timezone.localdate() - timedelta(days=1)
             ).select_related("post")[:MORNING_DRAFT_COUNT],
         },
     )

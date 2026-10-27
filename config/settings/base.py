@@ -26,7 +26,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django_bootstrap5",
     "apps.core",
     "apps.accounts",
     "apps.content",
@@ -92,7 +91,6 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# Times are stored in UTC; OWNER_TIMEZONE is used for display and scheduling.
 LANGUAGE_CODE = "en-us"
 OWNER_TIMEZONE = env("OWNER_TIMEZONE", default="Asia/Kolkata")
 TIME_ZONE = OWNER_TIMEZONE
@@ -103,7 +101,6 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Each user signs in to a private app workspace.
 LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "core:home"
 LOGOUT_REDIRECT_URL = "accounts:login"
@@ -112,32 +109,25 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 
-# Owner-maintained Markdown knowledge sources (founder, company, style, examples).
 KNOWLEDGE_DIR = BASE_DIR / "knowledge"
 
-# Fernet keys for LinkedIn tokens, newest first. Dedicated; never the SECRET_KEY.
 TOKEN_ENCRYPTION_KEYS = env.list("TOKEN_ENCRYPTION_KEYS", default=[])
 
-# Gemini API. Credentials stay in local .env or the deployment secret store.
 GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
 GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.8-flash")
 GEMINI_TIMEOUT_SECONDS = env.int("GEMINI_TIMEOUT_SECONDS", default=45)
 
-# LinkedIn OAuth and Posts API. The default API version is the latest version
-# documented on 2026-10-15; operators should update it before its sunset.
 LINKEDIN_CLIENT_ID = env("LINKEDIN_CLIENT_ID", default="")
 LINKEDIN_CLIENT_SECRET = env("LINKEDIN_CLIENT_SECRET", default="")
 LINKEDIN_REDIRECT_URI = env("LINKEDIN_REDIRECT_URI", default="")
 LINKEDIN_API_VERSION = env("LINKEDIN_API_VERSION", default="202609")
 LINKEDIN_TIMEOUT_SECONDS = env.int("LINKEDIN_TIMEOUT_SECONDS", default=15)
 
-# Review quality scores are higher-is-better; risk scores are higher-is-worse.
 AI_REVIEW_QUALITY_MIN = env.int("AI_REVIEW_QUALITY_MIN", default=6)
 AI_REVIEW_AI_LIKE_MAX = env.int("AI_REVIEW_AI_LIKE_MAX", default=4)
 AI_REVIEW_PROMOTIONAL_MAX = env.int("AI_REVIEW_PROMOTIONAL_MAX", default=5)
 AI_REVIEW_REPETITION_MAX = env.int("AI_REVIEW_REPETITION_MAX", default=5)
 
-# Redis (Memurai on Windows) backs Celery and, later, task locks.
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 CACHES = {
     "default": {

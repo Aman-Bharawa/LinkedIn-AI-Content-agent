@@ -32,13 +32,10 @@ _FACT_WITH_SOURCE = re.compile(r"^(?P<text>.+?)\s*\(source:\s*(?P<source>[^)]+)\
 _COMMENT = re.compile(r"<!--.*?-->", re.S)
 
 
-# --- Markdown parsing ---------------------------------------------------------------
-
-
 @dataclass(frozen=True)
 class ParsedFact:
     text: str
-    source: str | None  # None means unverified
+    source: str | None
 
 
 def _sections(markdown: str) -> dict[str, tuple[str, str]]:
@@ -79,7 +76,7 @@ def parse_style(markdown: str) -> tuple[str, list[str]]:
     """Return (writing rules text, approved subject areas)."""
     sections = _sections(markdown)
     subject_areas = _bullets(sections.pop(SUBJECT_AREAS_HEADING, ("", ""))[1])
-    sections.pop("", None)  # owner-facing preamble, not a rule
+    sections.pop("", None)
     rules = "\n\n".join(f"## {heading}\n{body}" for heading, body in sections.values() if body)
     return rules, subject_areas
 
@@ -97,9 +94,6 @@ def parse_example(markdown: str) -> tuple[dict[str, str], str]:
                     meta[key.strip().lower()] = value.strip()
             body = parts[2]
     return meta, body.strip()
-
-
-# --- Sync to database -----------------------------------------------------------------
 
 
 @dataclass
@@ -222,9 +216,6 @@ def sync_knowledge(base_dir: Path | None = None) -> SyncReport:
     return report
 
 
-# --- Loader for AI services -------------------------------------------------------------
-
-
 @dataclass(frozen=True)
 class WritingSample:
     title: str
@@ -252,7 +243,6 @@ def load_knowledge_context(*, owner: Any = None, max_examples: int = 5) -> Knowl
 
     def contents(category: str) -> tuple[str, ...]:
         category_rows = usable.filter(category=category).order_by("pk")
-        # Each user's saved dashboard values override shared Markdown for just that category.
         overrides = category_rows.filter(owner=owner, source__startswith="owner-dashboard:")
         if overrides.exists():
             category_rows = overrides

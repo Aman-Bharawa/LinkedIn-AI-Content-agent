@@ -21,7 +21,6 @@ class Command(BaseCommand):
         count = 0
         with transaction.atomic():
             for account in LinkedInAccount.objects.select_for_update().order_by("pk"):
-                # Loading decrypts with any configured key; saving encrypts with the first.
                 account.save(update_fields=["access_token", "refresh_token", "updated_at"])
                 count += 1
         self.stdout.write(self.style.SUCCESS(f"Re-encrypted tokens for {count} account(s)."))
