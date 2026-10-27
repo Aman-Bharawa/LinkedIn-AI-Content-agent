@@ -23,6 +23,10 @@ class SignUpForm(UserCreationForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs.setdefault("class", "form-control")
+        self.fields["password1"].help_text = (
+            "Use at least 12 characters. Avoid common or numeric passwords and passwords "
+            "that are too similar to your account information."
+        )
 
     def save(self, commit=True):
         user = super().save(commit=False)

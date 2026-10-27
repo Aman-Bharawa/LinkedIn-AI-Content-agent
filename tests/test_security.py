@@ -6,13 +6,18 @@ from datetime import timedelta
 
 import pytest
 from cryptography.fernet import Fernet
+from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.core.management import call_command
 from django.db import IntegrityError, connection
+from django.http import HttpResponse
+from django.test import RequestFactory
 from django.urls import reverse
 from django.utils import timezone
+from redis.exceptions import RedisError
 
 from apps.accounts.models import LinkedInAccount, is_owner
+from apps.core.middleware import OwnerActionRateLimitMiddleware
 from apps.core.models import AuditEvent
 from apps.core.security import (
     REDACTED,
@@ -133,6 +138,106 @@ def test_admin_cannot_add_or_edit_accounts(client, owner, account):
         {"member_urn": "urn:li:person:hijack"},
     )
     assert response.status_code == 403
+
+
+def test_staff_non_superuser_cannot_access_global_admin(client, staff_user):
+    client.force_login(staff_user)
+    response = client.get(reverse("admin:index"))
+    assert response.status_code == 404
+
+
+def test_login_rate_limit_is_shared_by_username_and_client_ip(client, db):
+    cache.clear()
+    url = reverse("accounts:login")
+    for _ in range(5):
+        response = client.post(
+            url,
+            {"username": "unknown-user", "password": "wrong-password"},
+            HTTP_X_FORWARDED_FOR="203.0.113.8, 10.0.0.2",
+        )
+        assert response.status_code == 200
+    response = client.post(
+        url,
+        {"username": "unknown-user", "password": "wrong-password"},
+        HTTP_X_FORWARDED_FOR="203.0.113.8, 10.0.0.2",
+    )
+    assert response.status_code == 429
+    assert response["Retry-After"] == "300"
+
+
+def test_admin_login_rate_limit_is_applied(client, db):
+    cache.clear()
+    url = reverse("admin:login")
+    for _ in range(5):
+        response = client.post(
+            url,
+            {"username": "unknown-admin", "password": "wrong-password"},
+            HTTP_X_FORWARDED_FOR="203.0.113.9",
+        )
+        assert response.status_code == 200
+    response = client.post(
+        url,
+        {"username": "unknown-admin", "password": "wrong-password"},
+        HTTP_X_FORWARDED_FOR="203.0.113.9",
+    )
+    assert response.status_code == 429
+
+
+def test_post_regeneration_is_rate_limited():
+    cache.clear()
+    middleware = OwnerActionRateLimitMiddleware(lambda request: HttpResponse(status=200))
+    factory = RequestFactory()
+    for _ in range(10):
+        response = middleware(
+            factory.post("/posts/42/regenerate/", HTTP_X_FORWARDED_FOR="203.0.113.10")
+        )
+        assert response.status_code == 200
+    response = middleware(
+        factory.post("/posts/42/regenerate/", HTTP_X_FORWARDED_FOR="203.0.113.10")
+    )
+    assert response.status_code == 429
+
+
+def test_login_rate_limit_fails_closed_when_shared_cache_is_unavailable(client, monkeypatch):
+    def fail_cache(*args, **kwargs):
+        raise RedisError("cache unavailable")
+
+    monkeypatch.setattr(cache, "add", fail_cache)
+    response = client.post(
+        reverse("accounts:login"),
+        {"username": "unknown-user", "password": "wrong-password"},
+    )
+    assert response.status_code == 503
+
+
+def test_security_headers_are_set(client):
+    response = client.get(reverse("accounts:login"))
+    assert response["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
+    assert response["Cross-Origin-Resource-Policy"] == "same-origin"
+    assert response["X-Permitted-Cross-Domain-Policies"] == "none"
+    policy = response["Content-Security-Policy"]
+    assert "script-src 'self'" in policy
+    assert "unsafe-inline" not in policy.split("script-src", 1)[1].split(";", 1)[0]
+
+
+def test_signup_help_text_is_rendered_as_text(client):
+    response = client.get(reverse("accounts:sign-up"))
+    assert b"&lt;ul" not in response.content
+    assert b"Use at least 12 characters." in response.content
+
+
+def test_invalid_signup_input_is_escaped_in_response(client, db):
+    response = client.post(
+        reverse("accounts:sign-up"),
+        {
+            "username": "<script>alert(1)</script>",
+            "email": "test@example.com",
+            "password1": "unused-valid-password-123",
+            "password2": "unused-valid-password-123",
+        },
+    )
+    assert response.status_code == 200
+    assert b"<script>alert(1)</script>" not in response.content
 
 
 def test_dumpdata_masks_tokens(account, capsys):

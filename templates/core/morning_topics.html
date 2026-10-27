@@ -48,7 +48,7 @@
             {% for topic in topics %}
               <li class="morning-topic-item">
                 <span>{{ topic.topic }}</span>
-                <form method="post" class="m-0" onsubmit="return confirm('Remove this topic from your morning list?');">
+                <form method="post" class="m-0" data-confirm="Remove this topic from your morning list?">
                   {% csrf_token %}
                   <button class="btn btn-topic-remove" type="submit" name="delete_topic" value="{{ topic.pk }}" aria-label="Remove {{ topic.topic }}">Remove</button>
                 </form>

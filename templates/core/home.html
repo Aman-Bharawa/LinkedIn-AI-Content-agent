@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Drafts · LinkedIn AI Content Agent{% endblock %}
 
@@ -88,7 +89,7 @@
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-3">
               <span class="safety-note">Drafts need your approval before publishing.</span>
               <div class="d-flex flex-wrap gap-2">
-                <button type="button" class="btn btn-suggest btn-lg" id="suggest-topic">Suggest a topic</button>
+                <button type="button" class="btn btn-suggest btn-lg" id="suggest-topic" data-suggest-url="{% url 'core:suggest-topic' %}">Suggest a topic</button>
                 <button type="submit" class="btn btn-generate btn-lg" id="generate-draft" disabled>Generate draft</button>
               </div>
             </div>
@@ -141,69 +142,5 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script>
-    (() => {
-      const input = document.getElementById("id_keyword");
-      const button = document.getElementById("suggest-topic");
-      const generateButton = document.getElementById("generate-draft");
-      const characterCount = document.getElementById("topic-character-count");
-      const status = document.getElementById("topic-suggestion-status");
-      const filter = document.getElementById("status-filter");
-      const csrfToken = document.querySelector("input[name=csrfmiddlewaretoken]")?.value;
-      if (!input || !button || !generateButton || !characterCount || !status || !csrfToken) return;
-
-      const updateTopicState = () => {
-        const length = input.value.trim().length;
-        characterCount.textContent = `${input.value.length} / 255`;
-        generateButton.disabled = length < 2;
-        characterCount.classList.toggle("text-danger", input.value.length > 255);
-      };
-      input.addEventListener("input", updateTopicState);
-      updateTopicState();
-
-      input.form.addEventListener("submit", () => {
-        generateButton.disabled = true;
-        generateButton.innerHTML = '<span class="button-spinner" aria-hidden="true"></span> Creating your draft…';
-      });
-
-      filter?.addEventListener("change", () => filter.form.requestSubmit());
-
-      button.addEventListener("click", async () => {
-        button.disabled = true;
-        button.innerHTML = '<span class="suggest-spinner" aria-hidden="true"></span> Asking Gemini…';
-        status.innerHTML = '<span class="suggest-spinner" aria-hidden="true"></span> Coming up with a fresh idea…';
-        try {
-          const response = await fetch("{% url 'core:suggest-topic' %}", {
-            method: "POST",
-            headers: {
-              "Accept": "application/json",
-              "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-              "X-CSRFToken": csrfToken
-            },
-            body: new URLSearchParams({ current_topic: input.value }),
-            credentials: "same-origin"
-          });
-          const contentType = response.headers.get("content-type") || "";
-          if (!contentType.includes("application/json")) {
-            throw new Error("Your session may have expired. Refresh the page and try again.");
-          }
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || "Gemini could not suggest a topic.");
-
-          input.value = result.topic;
-          input.dispatchEvent(new Event("input", { bubbles: true }));
-          updateTopicState();
-          input.focus();
-          input.setSelectionRange(input.value.length, input.value.length);
-          status.textContent =
-            "Gemini suggested this topic. Edit it if you like, then generate your draft.";
-        } catch (error) {
-          status.textContent = error.message || "Could not get a topic suggestion. Please try again.";
-        } finally {
-          button.disabled = false;
-          button.innerHTML = '<span aria-hidden="true">✧</span> Suggest a topic';
-        }
-      });
-    })();
-  </script>
+  <script src="{% static 'js/home.js' %}" defer></script>
 {% endblock %}
