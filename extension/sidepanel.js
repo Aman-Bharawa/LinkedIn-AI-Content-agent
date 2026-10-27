@@ -120,7 +120,7 @@ function renderDraft(post) {
 }
 
 async function loadDrafts() {
-  const result = await api("/drafts/");
+  const result = await api("/drafts/", { method: "POST", body: JSON.stringify({ action: "list" }) });
   ui.drafts.replaceChildren();
   ui.draftCount.textContent = String(result.drafts.length);
   if (!result.drafts.length) {

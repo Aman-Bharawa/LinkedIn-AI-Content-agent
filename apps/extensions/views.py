@@ -74,6 +74,25 @@ def _token_owner(request: HttpRequest):
     return (token.owner if token else None), origin
 
 
+def _drafts_response(request: HttpRequest, owner) -> JsonResponse:
+    posts = LinkedInPost.objects.filter(owner=owner).order_by("-created_at")[:20]
+    results = [
+        {
+            "id": post.pk,
+            "topic": post.topic,
+            "hook": post.hook,
+            "content": post.content,
+            "hashtags": post.hashtags,
+            "status": post.status,
+            "error": post.last_error,
+            "scheduled_for": post.scheduled_for.isoformat() if post.scheduled_for else None,
+            "url": request.build_absolute_uri(reverse("posts:detail", args=[post.pk])),
+        }
+        for post in posts
+    ]
+    return JsonResponse({"drafts": results})
+
+
 @login_required
 @require_GET
 def pair_page(request: HttpRequest):
@@ -136,25 +155,12 @@ def drafts_api(request: HttpRequest):
     if owner is None:
         return _cors(JsonResponse({"error": "Extension connection expired. Reconnect to continue."}, status=401), origin)
     if request.method == "GET":
-        posts = LinkedInPost.objects.filter(owner=owner).order_by("-created_at")[:20]
-        results = [
-            {
-                "id": post.pk,
-                "topic": post.topic,
-                "hook": post.hook,
-                "content": post.content,
-                "hashtags": post.hashtags,
-                "status": post.status,
-                "error": post.last_error,
-                "scheduled_for": post.scheduled_for.isoformat() if post.scheduled_for else None,
-                "url": request.build_absolute_uri(reverse("posts:detail", args=[post.pk])),
-            }
-            for post in posts
-        ]
-        return _cors(JsonResponse({"drafts": results}), origin)
+        return _cors(_drafts_response(request, owner), origin)
     if request.method != "POST":
         return _cors(JsonResponse({"error": "Method not allowed."}, status=405), origin)
     data = _json_body(request)
+    if data.get("action") == "list":
+        return _cors(_drafts_response(request, owner), origin)
     keyword_value = data.get("keyword", "")
     if not isinstance(keyword_value, str):
         keyword_value = ""
