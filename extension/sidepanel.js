@@ -37,12 +37,14 @@ function clearNotice() {
 
 async function readJson(response) {
   let body = {};
+  let responseText = "";
   try {
-    body = await response.json();
+    responseText = await response.text();
+    body = responseText ? JSON.parse(responseText) : {};
   } catch {
     body = {};
   }
-  if (!response.ok) throw new Error(body.error || `Request failed (${response.status}).`);
+  if (!response.ok) throw new Error(body.error || responseText || `Request failed (${response.status}).`);
   return body;
 }
 
@@ -120,7 +122,7 @@ function renderDraft(post) {
 }
 
 async function loadDrafts() {
-  const result = await api("/drafts/", { method: "POST", body: JSON.stringify({ action: "list" }) });
+  const result = await api("/drafts/list/", { method: "POST", body: "{}" });
   ui.drafts.replaceChildren();
   ui.draftCount.textContent = String(result.drafts.length);
   if (!result.drafts.length) {
@@ -143,6 +145,10 @@ async function loadDrafts() {
 }
 
 function handleApiError(error) {
+  if (pollTimer) {
+    window.clearInterval(pollTimer);
+    pollTimer = 0;
+  }
   showNotice(error.message || "Could not reach the application.", true);
   if (error.message.includes("connection expired")) {
     activeToken = "";
@@ -220,6 +226,11 @@ async function disconnect() {
   } catch {
   }
   activeToken = "";
+  if (pollTimer) {
+    window.clearInterval(pollTimer);
+    pollTimer = 0;
+  }
+  pendingGenerations.clear();
   await chrome.storage.local.remove(tokenKey);
   setConnected(false);
   clearNotice();

@@ -21,6 +21,7 @@ class OwnerActionRateLimitMiddleware:
         "/linkedin/connect/": (10, 60),
         "/extension/api/token/": (5, 300),
         "/extension/api/drafts/": (10, 60),
+        "/extension/api/drafts/list/": (60, 60),
         "/extension/pair/": (10, 60),
     }
     PUBLISH_LIMIT = (5, 60)

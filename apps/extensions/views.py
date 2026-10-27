@@ -132,7 +132,9 @@ def exchange_pairing_code(request: HttpRequest):
             owner__is_active=True,
         ).first()
         if pairing is None:
-            return _cors(JsonResponse({"error": "Pairing code is invalid or expired."}, status=400), origin)
+            return _cors(
+                JsonResponse({"error": "Pairing code is invalid or expired."}, status=400), origin
+            )
         pairing.used_at = timezone.now()
         pairing.save(update_fields=["used_at"])
         raw_token = secrets.token_urlsafe(40)
@@ -141,7 +143,10 @@ def exchange_pairing_code(request: HttpRequest):
             token_digest=_digest(raw_token),
             expires_at=timezone.now() + TOKEN_LIFETIME,
         )
-    return _cors(JsonResponse({"token": raw_token, "expires_in": int(TOKEN_LIFETIME.total_seconds())}), origin)
+    return _cors(
+        JsonResponse({"token": raw_token, "expires_in": int(TOKEN_LIFETIME.total_seconds())}),
+        origin,
+    )
 
 
 @csrf_exempt
@@ -153,20 +158,28 @@ def drafts_api(request: HttpRequest):
         return _options(request)
     owner, origin = _token_owner(request)
     if owner is None:
-        return _cors(JsonResponse({"error": "Extension connection expired. Reconnect to continue."}, status=401), origin)
+        return _cors(
+            JsonResponse(
+                {"error": "Extension connection expired. Reconnect to continue."}, status=401
+            ),
+            origin,
+        )
     if request.method == "GET":
         return _cors(_drafts_response(request, owner), origin)
     if request.method != "POST":
         return _cors(JsonResponse({"error": "Method not allowed."}, status=405), origin)
     data = _json_body(request)
-    if data.get("action") == "list":
-        return _cors(_drafts_response(request, owner), origin)
     keyword_value = data.get("keyword", "")
     if not isinstance(keyword_value, str):
         keyword_value = ""
     form = GeneratePostForm({"keyword": keyword_value})
     if not form.is_valid():
-        return _cors(JsonResponse({"error": "Enter a topic between 2 and 255 characters."}, status=400), origin)
+        return _cors(
+            JsonResponse(
+                {"error": "Enter a topic between 2 and 255 characters."}, status=400
+            ),
+            origin,
+        )
     keyword = form.cleaned_data["keyword"].strip()
     post = LinkedInPost.objects.create(
         owner=owner,
@@ -187,8 +200,38 @@ def drafts_api(request: HttpRequest):
             actor=owner,
             reason="The background worker could not accept this generation job.",
         )
-        return _cors(JsonResponse({"error": "Draft generation could not be queued. Check that the worker is running."}, status=503), origin)
+        return _cors(
+            JsonResponse(
+                {
+                    "error": (
+                        "Draft generation could not be queued. Check that the worker is running."
+                    )
+                },
+                status=503,
+            ),
+            origin,
+        )
     return _cors(JsonResponse({"id": post.pk, "status": post.status}, status=202), origin)
+
+
+@csrf_exempt
+def drafts_list_api(request: HttpRequest):
+    origin = _extension_origin(request)
+    if not origin:
+        return _cors(JsonResponse({"error": "Extension origin required."}, status=403), origin)
+    if request.method == "OPTIONS":
+        return _options(request)
+    if request.method != "POST":
+        return _cors(JsonResponse({"error": "Method not allowed."}, status=405), origin)
+    owner, origin = _token_owner(request)
+    if owner is None:
+        return _cors(
+            JsonResponse(
+                {"error": "Extension connection expired. Reconnect to continue."}, status=401
+            ),
+            origin,
+        )
+    return _cors(_drafts_response(request, owner), origin)
 
 
 @csrf_exempt
@@ -202,12 +245,19 @@ def approve_api(request: HttpRequest, post_id: int):
         return _cors(JsonResponse({"error": "Method not allowed."}, status=405), origin)
     owner, origin = _token_owner(request)
     if owner is None:
-        return _cors(JsonResponse({"error": "Extension connection expired. Reconnect to continue."}, status=401), origin)
+        return _cors(
+            JsonResponse(
+                {"error": "Extension connection expired. Reconnect to continue."}, status=401
+            ),
+            origin,
+        )
     post = LinkedInPost.objects.filter(owner=owner).filter(pk=post_id).first()
     if post is None:
         return _cors(JsonResponse({"error": "Draft not found."}, status=404), origin)
     if post.status not in (PostStatus.PENDING_APPROVAL, PostStatus.NEEDS_MANUAL_REVIEW):
-        return _cors(JsonResponse({"error": "This draft is not waiting for approval."}, status=409), origin)
+        return _cors(
+            JsonResponse({"error": "This draft is not waiting for approval."}, status=409), origin
+        )
     try:
         with transaction.atomic():
             post = transition_post(post, PostStatus.APPROVED, actor=owner)
@@ -221,10 +271,19 @@ def approve_api(request: HttpRequest, post_id: int):
                 post=post,
                 from_status=PostStatus.APPROVED,
                 to_status=PostStatus.APPROVED,
-                metadata={"scheduled_for": post.scheduled_for.isoformat()} if post.scheduled_for else {},
+                metadata=(
+                    {"scheduled_for": post.scheduled_for.isoformat()}
+                    if post.scheduled_for
+                    else {}
+                ),
             )
     except InvalidTransition:
-        return _cors(JsonResponse({"error": "This draft is no longer waiting for approval."}, status=409), origin)
+        return _cors(
+            JsonResponse(
+                {"error": "This draft is no longer waiting for approval."}, status=409
+            ),
+            origin,
+        )
     return _cors(JsonResponse({
         "message": "Draft approved and added to the publishing queue.",
         "scheduled_for": post.scheduled_for.isoformat() if post.scheduled_for else None,
