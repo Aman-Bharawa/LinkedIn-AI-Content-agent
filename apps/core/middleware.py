@@ -19,6 +19,9 @@ class OwnerActionRateLimitMiddleware:
         "/posts/generate/": (10, 60),
         "/suggest-topic/": (10, 60),
         "/linkedin/connect/": (10, 60),
+        "/extension/api/token/": (5, 300),
+        "/extension/api/drafts/": (10, 60),
+        "/extension/pair/": (10, 60),
     }
     PUBLISH_LIMIT = (5, 60)
 
@@ -31,8 +34,11 @@ class OwnerActionRateLimitMiddleware:
             limit = self.PUBLISH_LIMIT
         if request.path.startswith("/posts/") and request.path.endswith("/regenerate/"):
             limit = (10, 60)
+        if request.path.startswith("/extension/api/drafts/") and request.path.endswith("/approve/"):
+            limit = (10, 60)
         if (limit and request.method == "POST") or (
-            request.path == "/linkedin/connect/" and request.method == "GET"
+            request.path in {"/linkedin/connect/", "/extension/pair/"}
+            and request.method == "GET"
         ):
             address = self._client_ip(request)
             identity = request.POST.get("username", "").strip().casefold()

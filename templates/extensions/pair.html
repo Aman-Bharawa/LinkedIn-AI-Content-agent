@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Connect Chrome side panel{% endblock %}
+
+{% block content %}
+<section class="card shadow-sm mx-auto" style="max-width: 38rem">
+  <div class="card-body p-4 p-md-5">
+    <p class="text-uppercase small text-secondary mb-2">Chrome side panel</p>
+    <h1 class="h3 mb-3">Connect your account</h1>
+    <p class="text-secondary">Enter this one-time code in the LinkedIn AI Agent side panel. It expires in {{ expires_minutes }} minutes and can only be used once.</p>
+    <div class="rounded border p-3 my-4 text-center fs-4 font-monospace user-select-all" aria-label="One-time pairing code">{{ pairing_code }}</div>
+    <p class="small text-secondary mb-0">This code only links the extension to your account. Your Gemini and LinkedIn credentials stay on the server.</p>
+  </div>
+</section>
+{% endblock %}

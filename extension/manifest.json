@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "LinkedIn AI Content Agent",
+  "version": "1.0.0",
+  "description": "Generate, review, and queue LinkedIn drafts from a private side panel.",
+  "permissions": ["sidePanel", "storage"],
+  "host_permissions": [
+    "https://linkedin-ai-content-agent-zpv4.onrender.com/*",
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open LinkedIn AI Content Agent"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  }
+}

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LinkedIn AI Content Agent</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-mark">L</div>
+    <div>
+      <p class="eyebrow">YOUR CONTENT WORKSPACE</p>
+      <h1>LinkedIn AI Agent</h1>
+    </div>
+    <button id="refresh" class="icon-button" type="button" title="Refresh drafts" aria-label="Refresh drafts">↻</button>
+  </header>
+
+  <main>
+    <section id="connect-card" class="panel connect-card hidden">
+      <span class="step-number">01</span>
+      <h2>Connect your account</h2>
+      <p>Link this panel to your app account with a one-time code.</p>
+      <button id="open-pairing" class="button secondary" type="button">Open secure pairing page</button>
+      <form id="pair-form" class="pair-form">
+        <label for="pair-code">One-time code</label>
+        <input id="pair-code" autocomplete="off" maxlength="100" required>
+        <button class="button primary" type="submit">Connect side panel</button>
+      </form>
+    </section>
+
+    <div id="connected-view" class="hidden">
+      <section class="panel compose-panel">
+        <div class="section-heading">
+          <div><span class="eyebrow">NEW DRAFT</span><h2>What are you thinking about?</h2></div>
+          <span class="sparkle" aria-hidden="true">✳</span>
+        </div>
+        <form id="generate-form">
+          <label class="visually-hidden" for="keyword">Draft topic</label>
+          <textarea id="keyword" maxlength="255" minlength="2" rows="3" placeholder="A topic, idea, or point of view…" required></textarea>
+          <div class="form-footer">
+            <span id="character-count">0 / 255</span>
+            <button id="generate" class="button primary" type="submit"><span>Generate draft</span><span aria-hidden="true">↗</span></button>
+          </div>
+        </form>
+      </section>
+
+      <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
+
+      <section class="draft-section">
+        <div class="section-heading drafts-heading">
+          <div><span class="eyebrow">YOUR RECENT WORK</span><h2>Drafts &amp; posts</h2></div>
+          <span id="draft-count" class="count-badge">0</span>
+        </div>
+        <div id="drafts" class="draft-list"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer id="footer" class="footer hidden">
+    <a href="https://linkedin-ai-content-agent-zpv4.onrender.com/" target="_blank" rel="noreferrer">Open full workspace <span aria-hidden="true">↗</span></a>
+    <button id="disconnect" class="text-button" type="button">Disconnect</button>
+  </footer>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "apps.content",
     "apps.posts",
     "apps.linkedin",
+    "apps.extensions",
 ]
 
 MIDDLEWARE = [
